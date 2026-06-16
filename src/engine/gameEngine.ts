@@ -1,0 +1,96 @@
+import type { Card, GameState, Player } from '../types';
+
+const INITIAL_HAND_SIZE = 5;
+
+export interface DealResult {
+  deck: Card[];
+  players: Array<{ id: string; hand: Card[] }>;
+}
+
+export function dealInitialHands(deck: Card[], playerIds: string[]): DealResult {
+  const remaining = [...deck];
+  const players: Array<{ id: string; hand: Card[] }> = playerIds.map(id => ({
+    id,
+    hand: [],
+  }));
+
+  for (let round = 0; round < INITIAL_HAND_SIZE; round++) {
+    for (const player of players) {
+      const card = remaining.shift();
+      if (card) player.hand.push({ ...card, face: 'face-down' });
+    }
+  }
+
+  return { deck: remaining, players };
+}
+
+export function drawCardFromDeck(
+  state: GameState,
+  targetX: number,
+  targetY: number,
+): Partial<GameState> {
+  if (state.deck.length === 0) return {};
+
+  const [drawn, ...deck] = state.deck;
+  const card: Card = { ...drawn, face: 'face-up', x: targetX, y: targetY };
+
+  const players = state.players.map((p): Player =>
+    p.id === state.activePlayerId
+      ? { ...p, hand: [...p.hand, card] }
+      : p,
+  );
+
+  return { deck, players };
+}
+
+export function playCardToShared(
+  state: GameState,
+  cardId: string,
+  targetX: number,
+  targetY: number,
+): Partial<GameState> {
+  let played: Card | undefined;
+
+  const players = state.players.map((p): Player => {
+    if (p.id !== state.activePlayerId) return p;
+    const idx = p.hand.findIndex(c => c.id === cardId);
+    if (idx === -1) return p;
+    played = { ...p.hand[idx], face: 'face-up', x: targetX, y: targetY };
+    return { ...p, hand: p.hand.filter(c => c.id !== cardId) };
+  });
+
+  if (!played) return {};
+  return { players, discard: [...state.discard, played] };
+}
+
+export function flipCardById(state: GameState, cardId: string): Partial<GameState> {
+  const toggle = (c: Card): Card =>
+    c.id === cardId
+      ? { ...c, face: c.face === 'face-up' ? 'face-down' : 'face-up' }
+      : c;
+
+  return {
+    players: state.players.map(p => ({ ...p, hand: p.hand.map(toggle) })),
+    discard: state.discard.map(toggle),
+  };
+}
+
+export function moveCardById(
+  state: GameState,
+  cardId: string,
+  x: number,
+  y: number,
+): Partial<GameState> {
+  const reposition = (c: Card): Card => (c.id === cardId ? { ...c, x, y } : c);
+
+  return {
+    players: state.players.map(p => ({ ...p, hand: p.hand.map(reposition) })),
+    discard: state.discard.map(reposition),
+  };
+}
+
+export function advanceToNextPlayer(state: GameState): Partial<GameState> {
+  const idx = state.players.findIndex(p => p.id === state.activePlayerId);
+  const next = state.players[(idx + 1) % state.players.length];
+  return { activePlayerId: next.id };
+}
