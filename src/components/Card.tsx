@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Group, Rect, Text } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Card } from '../types';
@@ -22,17 +23,34 @@ interface CardProps {
 
 export default function CardComponent({ card, onPlay }: CardProps) {
   const { flipCard, moveCard } = useGameStore();
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isRed = RED_SUITS.has(card.suit);
   const ink = isRed ? '#c0392b' : '#111';
   const sym = SUIT_SYMBOL[card.suit];
 
   function handleClick() {
-    flipCard(card.id);
+    if (!onPlay) {
+      // No double-click action on this card — flip immediately
+      flipCard(card.id);
+      return;
+    }
+    // Debounce: wait to see if a second click follows within 220 ms
+    if (clickTimer.current !== null) return;
+    clickTimer.current = setTimeout(() => {
+      clickTimer.current = null;
+      flipCard(card.id);
+    }, 220);
   }
 
   function handleDblClick() {
-    onPlay?.();
+    if (!onPlay) return;
+    // Cancel the pending single-click flip and play instead
+    if (clickTimer.current !== null) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+    }
+    onPlay();
   }
 
   function handleDragEnd(e: KonvaEventObject<DragEvent>) {
