@@ -1,4 +1,4 @@
-import type { Card, GameState, Player } from '../types';
+import type { Card, CellId, GameState, Player } from '../types';
 
 const INITIAL_HAND_SIZE = 5;
 
@@ -93,4 +93,26 @@ export function advanceToNextPlayer(state: GameState): Partial<GameState> {
   const idx = state.players.findIndex(p => p.id === state.activePlayerId);
   const next = state.players[(idx + 1) % state.players.length];
   return { activePlayerId: next.id };
+}
+
+// ── Phase 2: board & dice ────────────────────────────────────────────────────
+
+export function movePawn(
+  state: GameState,
+  pawnId: string,
+  targetCellId: CellId,
+): Partial<GameState> {
+  if (!state.board) return {};
+  const cell = state.board.cells.find(c => c.id === targetCellId);
+  if (!cell) return {};
+
+  const pawns = state.pawns.map(p =>
+    p.id === pawnId ? { ...p, cellId: targetCellId, x: cell.x, y: cell.y } : p,
+  );
+  return { pawns };
+}
+
+export function rollDice(state: GameState): Partial<GameState> {
+  const result = Math.floor(Math.random() * state.dice.faces) + 1;
+  return { dice: { ...state.dice, lastResult: result } };
 }
