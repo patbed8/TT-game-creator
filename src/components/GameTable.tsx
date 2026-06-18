@@ -9,6 +9,8 @@ import SharedZone from './SharedZone';
 import BoardComponent from './Board';
 import PawnComponent from './Pawn';
 import DieComponent from './Die';
+import TileComponent from './Tile';
+import TilePalette from './TilePalette';
 
 const CARD_W = 70;
 const CARD_H = 100;
@@ -47,8 +49,8 @@ function unhover(e: React.MouseEvent<HTMLButtonElement>) {
 export default function GameTable() {
   const { w, h } = useWindowSize();
   const {
-    deck, discard, players, activePlayerId, board, pawns, dice,
-    drawCard, playCard, endTurn, rollDice, toggleBoardType,
+    deck, discard, players, activePlayerId, board, pawns, dice, tiles,
+    drawCard, playCard, endTurn, rollDice, toggleBoardType, addTile,
   } = useGameStore();
   const activePlayer = players.find(p => p.id === activePlayerId);
 
@@ -89,6 +91,13 @@ export default function GameTable() {
 
   function onStageTouchEnd() { touchRef.current = null; }
 
+  function viewportCenter() {
+    return {
+      x: (-stageView.x + w / 2) / stageView.scale,
+      y: (-stageView.y + h / 2) / stageView.scale,
+    };
+  }
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
       <Stage
@@ -105,6 +114,11 @@ export default function GameTable() {
         <Layer>
           {/* Board — rendered first so it stays below everything else */}
           {board && <BoardComponent board={board} />}
+
+          {/* Tiles — above board, below cards and pawns */}
+          {tiles.map(tile => (
+            <TileComponent key={tile.id} tile={tile} />
+          ))}
 
           {/* Hand and shared zone backgrounds */}
           {activePlayer && (
@@ -141,6 +155,14 @@ export default function GameTable() {
           ))}
         </Layer>
       </Stage>
+
+      {/* Tile palette — left-side overlay */}
+      <TilePalette
+        onAdd={model => {
+          const { x, y } = viewportCenter();
+          addTile(model.shape, model.color, x, y, model.size);
+        }}
+      />
 
       {/* HTML overlay: controls */}
       <div

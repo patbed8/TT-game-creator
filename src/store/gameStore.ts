@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BoardConfig, BoardType, CellId, GameState, Pawn, Player } from '../types';
+import type { BoardConfig, BoardType, CellId, GameState, Pawn, Player, TileShape } from '../types';
 import { createDeck, shuffleDeck } from '../engine/deckUtils';
 import { createGridBoard, createPathBoard } from '../data/boards';
 import {
@@ -11,6 +11,9 @@ import {
   advanceToNextPlayer,
   movePawn as engineMovePawn,
   rollDice as engineRollDice,
+  addTile as engineAddTile,
+  moveTile as engineMoveTile,
+  removeTile as engineRemoveTile,
 } from '../engine/gameEngine';
 
 // ── Layout constants ─────────────────────────────────────────────────────────
@@ -78,6 +81,10 @@ interface GameStore extends GameState {
   movePawn: (pawnId: string, targetCellId: CellId) => void;
   rollDice: () => void;
   toggleBoardType: () => void;
+  // Phase 3 actions
+  addTile: (shape: TileShape, color: string, x: number, y: number, size: number) => void;
+  moveTile: (tileId: string, x: number, y: number) => void;
+  removeTile: (tileId: string) => void;
 }
 
 // ── Initial state ────────────────────────────────────────────────────────────
@@ -96,6 +103,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   board: initialBoard,
   pawns: makeInitialPawns(initialBoard),
   dice: { faces: 6, lastResult: null },
+  // Phase 3 state
+  tiles: [],
 
   // ── Phase 1 actions ────────────────────────────────────────────────────────
 
@@ -162,5 +171,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newType: BoardType = currentType === 'grid' ? 'path' : 'grid';
     const newBoard = makeBoardForType(newType);
     set({ board: newBoard, pawns: makeInitialPawns(newBoard) });
+  },
+
+  // ── Phase 3 actions ────────────────────────────────────────────────────────
+
+  addTile(shape, color, x, y, size) {
+    set(s => engineAddTile(s, shape, color, x, y, size));
+  },
+
+  moveTile(tileId, x, y) {
+    set(s => engineMoveTile(s, tileId, x, y));
+  },
+
+  removeTile(tileId) {
+    set(s => engineRemoveTile(s, tileId));
   },
 }));
