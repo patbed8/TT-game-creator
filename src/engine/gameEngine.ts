@@ -1,4 +1,5 @@
-import type { Card, CellId, GameState, Player } from '../types';
+import type { Card, CellId, GameState, Player, Tile, TileShape } from '../types';
+import { findSnapPosition } from './tileUtils';
 
 const INITIAL_HAND_SIZE = 5;
 
@@ -115,4 +116,45 @@ export function movePawn(
 export function rollDice(state: GameState): Partial<GameState> {
   const result = Math.floor(Math.random() * state.dice.faces) + 1;
   return { dice: { ...state.dice, lastResult: result } };
+}
+
+// ── Phase 3: tiles ────────────────────────────────────────────────────────────
+
+export function addTile(
+  state: GameState,
+  shape: TileShape,
+  color: string,
+  x: number,
+  y: number,
+  size: number,
+): Partial<GameState> {
+  const tile: Tile = {
+    id: 'tile-' + Math.random().toString(36).slice(2, 11),
+    shape,
+    color,
+    x,
+    y,
+    size,
+  };
+  return { tiles: [...state.tiles, tile] };
+}
+
+export function moveTile(
+  state: GameState,
+  tileId: string,
+  x: number,
+  y: number,
+): Partial<GameState> {
+  const tile = state.tiles.find(t => t.id === tileId);
+  if (!tile) return {};
+
+  const others = state.tiles.filter(t => t.id !== tileId);
+  const snap = findSnapPosition(others, tile.shape, x, y, tile.size);
+  const pos = snap ?? { x, y };
+
+  return { tiles: state.tiles.map(t => t.id === tileId ? { ...t, ...pos } : t) };
+}
+
+export function removeTile(state: GameState, tileId: string): Partial<GameState> {
+  return { tiles: state.tiles.filter(t => t.id !== tileId) };
 }

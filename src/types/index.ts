@@ -55,6 +55,20 @@ export interface DiceState {
   lastResult: number | null;
 }
 
+// ── Phase 3: tiles ────────────────────────────────────────────────────────────
+
+export type TileShape = 'square' | 'hexagon';
+
+export interface Tile {
+  id: string;
+  shape: TileShape;
+  x: number;          // canvas center position
+  y: number;
+  size: number;       // square: side length; hexagon: circumradius (center → vertex)
+  color: string;
+  content?: string;   // optional label/text on the tile
+}
+
 export interface GameState {
   deck: Card[];
   discard: Card[];
@@ -63,4 +77,5 @@ export interface GameState {
   board: BoardConfig | null;
   pawns: Pawn[];
   dice: DiceState;
+  tiles: Tile[];
 }
