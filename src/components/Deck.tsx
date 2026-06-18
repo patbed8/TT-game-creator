@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Group, Rect, Text } from 'react-konva';
 
 interface DeckProps {
@@ -10,6 +11,15 @@ interface DeckProps {
 }
 
 export default function DeckZone({ x, y, cardCount, cardWidth, cardHeight, onDraw }: DeckProps) {
+  const lastDrawTime = useRef(0);
+
+  function handleDraw() {
+    const now = Date.now();
+    if (now - lastDrawTime.current < 300) return;
+    lastDrawTime.current = now;
+    onDraw();
+  }
+
   return (
     <Group x={x} y={y}>
       <Text
@@ -20,7 +30,7 @@ export default function DeckZone({ x, y, cardCount, cardWidth, cardHeight, onDra
       />
 
       {cardCount > 0 ? (
-        <Group onClick={onDraw}>
+        <Group onClick={handleDraw} onTap={handleDraw}>
           {/* Stacked shadow cards for depth */}
           <Rect x={4} y={4} width={cardWidth} height={cardHeight} fill="#0f2040" cornerRadius={6} />
           <Rect x={2} y={2} width={cardWidth} height={cardHeight} fill="#152a52" cornerRadius={6} />

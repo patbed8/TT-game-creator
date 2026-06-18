@@ -24,6 +24,7 @@ interface CardProps {
 export default function CardComponent({ card, onPlay }: CardProps) {
   const { flipCard, moveCard } = useGameStore();
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastDblTime = useRef(0);
 
   const isRed = RED_SUITS.has(card.suit);
   const ink = isRed ? '#c0392b' : '#111';
@@ -45,7 +46,9 @@ export default function CardComponent({ card, onPlay }: CardProps) {
 
   function handleDblClick() {
     if (!onPlay) return;
-    // Cancel the pending single-click flip and play instead
+    const now = Date.now();
+    if (now - lastDblTime.current < 300) return;
+    lastDblTime.current = now;
     if (clickTimer.current !== null) {
       clearTimeout(clickTimer.current);
       clickTimer.current = null;
@@ -63,7 +66,9 @@ export default function CardComponent({ card, onPlay }: CardProps) {
       y={card.y}
       draggable
       onClick={handleClick}
+      onTap={handleClick}
       onDblClick={handleDblClick}
+      onDblTap={handleDblClick}
       onDragEnd={handleDragEnd}
     >
       <Rect
