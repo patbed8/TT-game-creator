@@ -1,5 +1,6 @@
-import { type CSSProperties, useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 import { Stage, Layer } from 'react-konva';
+import type { KonvaEventObject } from 'konva/lib/Node';
 import { useGameStore } from '../store/gameStore';
 import CardComponent from './Card';
 import DeckZone from './Deck';
@@ -25,7 +26,7 @@ function useWindowSize() {
 }
 
 const BTN: CSSProperties = {
-  padding: '9px 18px',
+  padding: '12px 16px',
   color: 'white',
   border: 'none',
   borderRadius: 6,
@@ -53,9 +54,54 @@ export default function GameTable() {
 
   const handY = h - CARD_H - 40;
 
+  const [stageView, setStageView] = useState({ x: 0, y: 0, scale: 1 });
+  const touchRef = useRef<{ dist: number; center: { x: number; y: number } } | null>(null);
+
+  function onStageTouchStart(e: KonvaEventObject<TouchEvent>) {
+    const t = e.evt.touches;
+    if (t.length === 2) {
+      touchRef.current = {
+        dist: Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY),
+        center: { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 },
+      };
+    }
+  }
+
+  function onStageTouchMove(e: KonvaEventObject<TouchEvent>) {
+    const t = e.evt.touches;
+    if (t.length !== 2 || !touchRef.current) return;
+    e.evt.preventDefault();
+    const newDist = Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
+    const newCenter = { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
+
+    setStageView(prev => {
+      const sf = newDist / touchRef.current!.dist;
+      const newScale = Math.max(0.3, Math.min(3, prev.scale * sf));
+      const newX = newCenter.x - (newCenter.x - prev.x) * (newScale / prev.scale)
+                 + (newCenter.x - touchRef.current!.center.x);
+      const newY = newCenter.y - (newCenter.y - prev.y) * (newScale / prev.scale)
+                 + (newCenter.y - touchRef.current!.center.y);
+      return { x: newX, y: newY, scale: newScale };
+    });
+
+    touchRef.current = { dist: newDist, center: newCenter };
+  }
+
+  function onStageTouchEnd() { touchRef.current = null; }
+
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
-      <Stage width={w} height={h}>
+      <Stage
+          width={w}
+          height={h}
+          x={stageView.x}
+          y={stageView.y}
+          scaleX={stageView.scale}
+          scaleY={stageView.scale}
+          onTouchStart={onStageTouchStart}
+          onTouchMove={onStageTouchMove}
+          onTouchEnd={onStageTouchEnd}
+        >
         <Layer>
           {/* Board — rendered first so it stays below everything else */}
           {board && <BoardComponent board={board} />}
@@ -162,9 +208,10 @@ export default function GameTable() {
             lineHeight: 1.6,
           }}
         >
-          Clic : retourner / Flip<br />
-          Double-clic : jouer / Play<br />
-          Glisser : déplacer / Drag
+          Clic/Tap : retourner / Flip<br />
+          Dbl-clic/Tap : jouer / Play<br />
+          Glisser : déplacer / Drag<br />
+          2 doigts : zoom + pan
         </div>
       </div>
     </div>
