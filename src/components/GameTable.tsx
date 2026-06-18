@@ -73,20 +73,28 @@ export default function GameTable() {
     const t = e.evt.touches;
     if (t.length !== 2 || !touchRef.current) return;
     e.evt.preventDefault();
+
     const newDist = Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
     const newCenter = { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
 
+    // Capture stable locals before mutating the ref — the setStageView updater
+    // runs asynchronously, so reading touchRef.current inside it would race.
+    const oldDist = touchRef.current.dist;
+    const oldCenterX = touchRef.current.center.x;
+    const oldCenterY = touchRef.current.center.y;
+    touchRef.current = { dist: newDist, center: newCenter };
+
     setStageView(prev => {
-      const sf = newDist / touchRef.current!.dist;
+      const sf = newDist / oldDist;
       const newScale = Math.max(0.3, Math.min(3, prev.scale * sf));
-      const newX = newCenter.x - (newCenter.x - prev.x) * (newScale / prev.scale)
-                 + (newCenter.x - touchRef.current!.center.x);
-      const newY = newCenter.y - (newCenter.y - prev.y) * (newScale / prev.scale)
-                 + (newCenter.y - touchRef.current!.center.y);
+      // The canvas point under oldCenter must appear at newCenter after the gesture.
+      // screen = canvas * scale + stageOffset  →  stageOffset = screen - canvas * scale
+      // canvas = (oldCenter - prev.offset) / prev.scale
+      // newOffset = newCenter - canvas * newScale = newCenter - (oldCenter - prev.offset) * sf
+      const newX = newCenter.x - (oldCenterX - prev.x) * sf;
+      const newY = newCenter.y - (oldCenterY - prev.y) * sf;
       return { x: newX, y: newY, scale: newScale };
     });
-
-    touchRef.current = { dist: newDist, center: newCenter };
   }
 
   function onStageTouchEnd() { touchRef.current = null; }
