@@ -1,13 +1,8 @@
-import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
+import SetupScreen from './components/SetupScreen';
 import GameTable from './components/GameTable';
 
 export default function App() {
-  const initGame = useGameStore(s => s.initGame);
-
-  useEffect(() => {
-    initGame();
-  }, [initGame]);
-
-  return <GameTable />;
+  const screen = useGameStore(s => s.screen);
+  return screen === 'setup' ? <SetupScreen /> : <GameTable />;
 }

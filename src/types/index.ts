@@ -8,11 +8,14 @@ export type Rank =
 
 export interface Card {
   id: string;
-  rank: Rank;
-  suit: Suit;
+  rank?: Rank;       // defined for standard52; optional for other deck types
+  suit?: Suit;
   face: CardFace;
   x: number;
   y: number;
+  value?: number;    // for numbered / colored-series decks
+  color?: string;    // card background accent color
+  label?: string;    // override center display text if set
 }
 
 export interface Player {
@@ -21,21 +24,22 @@ export interface Player {
   hand: Card[];
 }
 
-// ── Phase 2: board, pawns, dice ──────────────────────────────────────────────
+// ── Phase 2: board, pawns ─────────────────────────────────────────────────────
 
 export type CellId = string;
 
 export interface Cell {
   id: CellId;
-  x: number;        // canvas center position
+  x: number;
   y: number;
-  label?: string;   // number or text displayed in the cell
+  label?: string;
   color?: string;
 }
 
 export type BoardType = 'grid' | 'path';
 
-export interface BoardConfig {
+// Runtime board layout (renamed from BoardConfig to avoid collision with setup type)
+export interface BoardLayout {
   type: BoardType;
   cells: Cell[];
   cellSize: number;
@@ -44,15 +48,10 @@ export interface BoardConfig {
 export interface Pawn {
   id: string;
   playerId: string;
-  cellId: CellId | null;   // current cell, null if off-board
-  x: number;               // canvas position (follows cell, free during drag)
+  cellId: CellId | null;
+  x: number;
   y: number;
   color: string;
-}
-
-export interface DiceState {
-  faces: number;           // default 6
-  lastResult: number | null;
 }
 
 // ── Phase 3: tiles ────────────────────────────────────────────────────────────
@@ -66,16 +65,61 @@ export interface Tile {
   y: number;
   size: number;       // square: side length; hexagon: circumradius (center → vertex)
   color: string;
-  content?: string;   // optional label/text on the tile
+  content?: string;
 }
+
+// ── Phase 4: setup configuration ─────────────────────────────────────────────
+
+export type DieSides = 4 | 6 | 8 | 10 | 12 | 20;
+
+// Runtime die instance (replaces DiceState, now supports multiple dice)
+export interface Die {
+  id: string;
+  faces: DieSides;
+  lastResult: number | null;
+  x: number;
+  y: number;
+}
+
+export interface DieConfig {
+  sides: DieSides;
+  count: number;
+}
+
+// Setup-time board configuration (discriminated union)
+export type BoardConfig =
+  | { kind: 'none' }
+  | { kind: 'grid'; cols: number; rows: number }
+  | { kind: 'path'; length: number }
+  | { kind: 'freeTiles' };
+
+export type DeckSpec =
+  | { kind: 'standard52' }
+  | { kind: 'numbered'; count: number }
+  | { kind: 'coloredSeries'; colors: string[]; perColor: number };
+
+export interface PawnConfig {
+  color: string;
+  count: number;
+}
+
+export interface TableConfig {
+  dice: DieConfig[];
+  board: BoardConfig;
+  deck: DeckSpec | null;
+  pawns: PawnConfig[];
+  players: number;       // fixed at 2 for Phase 4
+}
+
+// ── Game state ────────────────────────────────────────────────────────────────
 
 export interface GameState {
   deck: Card[];
   discard: Card[];
   players: Player[];
   activePlayerId: string;
-  board: BoardConfig | null;
+  board: BoardLayout | null;
   pawns: Pawn[];
-  dice: DiceState;
+  dice: Die[];
   tiles: Tile[];
 }

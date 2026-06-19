@@ -1,4 +1,4 @@
-import type { BoardConfig, Cell } from '../types';
+import type { BoardLayout, Cell } from '../types';
 
 export function createGridBoard(
   rows = 8,
@@ -6,7 +6,7 @@ export function createGridBoard(
   cellSize = 50,
   originX = 0,
   originY = 0,
-): BoardConfig {
+): BoardLayout {
   const cells: Cell[] = [];
   let n = 1;
   for (let row = 0; row < rows; row++) {
@@ -30,7 +30,7 @@ export function createPathBoard(
   cellSize = 60,
   originX = 0,
   originY = 0,
-): BoardConfig {
+): BoardLayout {
   const perRow = Math.ceil(Math.sqrt(count));
   const cells: Cell[] = [];
 
