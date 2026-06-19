@@ -14,8 +14,6 @@ import TilePalette from './TilePalette';
 
 const CARD_W = 70;
 const CARD_H = 100;
-const DIE_X = 150;
-const DIE_Y = 60;
 
 function useWindowSize() {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -52,6 +50,7 @@ export default function GameTable() {
     deck, discard, players, activePlayerId, board, pawns, dice, tiles,
     drawCard, playCard, endTurn, rollDice, toggleBoardType, addTile,
   } = useGameStore();
+
   const activePlayer = players.find(p => p.id === activePlayerId);
 
   const handY = h - CARD_H - 40;
@@ -143,7 +142,9 @@ export default function GameTable() {
             cardHeight={CARD_H}
             onDraw={drawCard}
           />
-          <DieComponent x={DIE_X} y={DIE_Y} faces={dice.faces} result={dice.lastResult} />
+          {dice.map(die => (
+            <DieComponent key={die.id} x={die.x} y={die.y} faces={die.faces} result={die.lastResult} />
+          ))}
 
           {/* Cards — shared zone then hand (hand on top) */}
           {discard.map(card => (

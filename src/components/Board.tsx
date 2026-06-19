@@ -1,8 +1,8 @@
 import { Group, Rect, Text } from 'react-konva';
-import type { BoardConfig } from '../types';
+import type { BoardLayout } from '../types';
 
 interface BoardProps {
-  board: BoardConfig;
+  board: BoardLayout;
 }
 
 export default function BoardComponent({ board }: BoardProps) {

@@ -26,17 +26,21 @@ export default function CardComponent({ card, onPlay }: CardProps) {
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDblTime = useRef(0);
 
-  const isRed = RED_SUITS.has(card.suit);
+  const isStandard = card.suit !== undefined && card.rank !== undefined;
+  const isRed = isStandard && RED_SUITS.has(card.suit!);
   const ink = isRed ? '#c0392b' : '#111';
-  const sym = SUIT_SYMBOL[card.suit];
+  const sym = isStandard ? SUIT_SYMBOL[card.suit!] : '';
+
+  // Face-up background: use card.color if defined (colored-series cards), else white
+  const faceUpBg = card.color ?? 'white';
+  const faceUpStroke = card.color ? card.color : '#bbb';
+  const valueInk = card.color ? 'white' : '#111';
 
   function handleClick() {
     if (!onPlay) {
-      // No double-click action on this card — flip immediately
       flipCard(card.id);
       return;
     }
-    // Debounce: wait to see if a second click follows within 220 ms
     if (clickTimer.current !== null) return;
     clickTimer.current = setTimeout(() => {
       clickTimer.current = null;
@@ -74,9 +78,9 @@ export default function CardComponent({ card, onPlay }: CardProps) {
       <Rect
         width={CARD_W}
         height={CARD_H}
-        fill={card.face === 'face-up' ? 'white' : '#1a3a6b'}
+        fill={card.face === 'face-up' ? faceUpBg : '#1a3a6b'}
         cornerRadius={6}
-        stroke={card.face === 'face-up' ? '#bbb' : '#2a4a8b'}
+        stroke={card.face === 'face-up' ? faceUpStroke : '#2a4a8b'}
         strokeWidth={1}
         shadowColor="black"
         shadowBlur={5}
@@ -85,39 +89,30 @@ export default function CardComponent({ card, onPlay }: CardProps) {
       />
 
       {card.face === 'face-up' ? (
-        <>
-          <Text x={5} y={5} text={card.rank} fontSize={13} fill={ink} fontStyle="bold" />
-          <Text x={5} y={19} text={sym} fontSize={12} fill={ink} />
+        isStandard ? (
+          // Standard deck: suit + rank layout
+          <>
+            <Text x={5} y={5} text={card.rank} fontSize={13} fill={ink} fontStyle="bold" />
+            <Text x={5} y={19} text={sym} fontSize={12} fill={ink} />
+            <Text x={0} y={CARD_H / 2 - 14} width={CARD_W} text={sym} fontSize={26} fill={ink} align="center" />
+            <Text x={CARD_W - 5} y={CARD_H - 6} text={card.rank} fontSize={13} fill={ink} fontStyle="bold" rotation={180} />
+            <Text x={CARD_W - 5} y={CARD_H - 20} text={sym} fontSize={12} fill={ink} rotation={180} />
+          </>
+        ) : (
+          // Numbered / colored-series: centered value or label
           <Text
             x={0}
             y={CARD_H / 2 - 14}
             width={CARD_W}
-            text={sym}
-            fontSize={26}
-            fill={ink}
+            text={card.label ?? (card.value !== undefined ? String(card.value) : '?')}
+            fontSize={28}
+            fontStyle="bold"
+            fill={valueInk}
             align="center"
           />
-          <Text
-            x={CARD_W - 5}
-            y={CARD_H - 6}
-            text={card.rank}
-            fontSize={13}
-            fill={ink}
-            fontStyle="bold"
-            rotation={180}
-          />
-          <Text
-            x={CARD_W - 5}
-            y={CARD_H - 20}
-            text={sym}
-            fontSize={12}
-            fill={ink}
-            rotation={180}
-          />
-        </>
+        )
       ) : (
         <>
-          {/* Card back: two nested rectangles */}
           <Rect x={4} y={4} width={CARD_W - 8} height={CARD_H - 8} fill="#c0392b" cornerRadius={4} />
           <Rect x={8} y={8} width={CARD_W - 16} height={CARD_H - 16} fill="#1a3a6b" cornerRadius={2} />
         </>

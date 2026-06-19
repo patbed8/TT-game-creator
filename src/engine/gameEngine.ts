@@ -114,8 +114,12 @@ export function movePawn(
 }
 
 export function rollDice(state: GameState): Partial<GameState> {
-  const result = Math.floor(Math.random() * state.dice.faces) + 1;
-  return { dice: { ...state.dice, lastResult: result } };
+  return {
+    dice: state.dice.map(die => ({
+      ...die,
+      lastResult: Math.floor(Math.random() * die.faces) + 1,
+    })),
+  };
 }
 
 // ── Phase 3: tiles ────────────────────────────────────────────────────────────
