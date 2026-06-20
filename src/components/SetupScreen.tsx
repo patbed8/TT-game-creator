@@ -10,6 +10,12 @@ type DeckKind = 'none' | 'standard52' | 'numbered' | 'coloredSeries';
 
 const DIE_FACES: DieSides[] = [4, 6, 8, 10, 12, 20];
 
+// Dropdown option lists (replace free-text number inputs for mobile reliability)
+const GRID_SIZE_OPTS  = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20];
+const PATH_LEN_OPTS   = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+const NUM_COUNT_OPTS  = [5, 10, 15, 20, 26, 30, 40, 52, 75, 100];
+const PER_COLOR_OPTS  = [1, 2, 3, 4, 5, 6, 8, 10, 13];
+
 interface LocalConfig {
   dieCounts: Partial<Record<DieSides, number>>;
   boardKind: BoardKind;
@@ -49,8 +55,8 @@ function toTableConfig(lc: LocalConfig): TableConfig {
 
   const deck: DeckSpec | null =
     lc.deckKind === 'standard52'    ? { kind: 'standard52' } :
-    lc.deckKind === 'numbered'      ? { kind: 'numbered', count: Math.max(1, lc.numberedCount) } :
-    lc.deckKind === 'coloredSeries' ? { kind: 'coloredSeries', colors: lc.seriesColors, perColor: Math.max(1, lc.seriesPerColor) } :
+    lc.deckKind === 'numbered'      ? { kind: 'numbered', count: lc.numberedCount } :
+    lc.deckKind === 'coloredSeries' ? { kind: 'coloredSeries', colors: lc.seriesColors, perColor: lc.seriesPerColor } :
     null;
 
   const pawns = PAWN_COLORS
@@ -70,12 +76,13 @@ function deckCardCount(lc: LocalConfig): number {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const WRAP: CSSProperties = {
-  minHeight: '100vh',
+  height: '100vh',
+  overflowY: 'auto',               // this div scrolls; body stays overflow:hidden
   background: '#1e4d18',
   display: 'flex',
   alignItems: 'flex-start',
   justifyContent: 'center',
-  padding: '24px 12px 40px',
+  padding: '24px 12px 48px',
   fontFamily: 'system-ui, -apple-system, sans-serif',
   boxSizing: 'border-box',
 };
@@ -89,9 +96,7 @@ const CARD_BOX: CSSProperties = {
   color: 'white',
 };
 
-const SECTION: CSSProperties = {
-  marginBottom: 24,
-};
+const SECTION: CSSProperties = { marginBottom: 24 };
 
 const SECTION_TITLE: CSSProperties = {
   fontSize: 15,
@@ -117,13 +122,13 @@ const LABEL: CSSProperties = {
 };
 
 const COUNTER_BTN: CSSProperties = {
-  width: 28,
-  height: 28,
+  width: 34,
+  height: 34,
   background: 'rgba(255,255,255,0.15)',
   border: '1px solid rgba(255,255,255,0.3)',
   borderRadius: 6,
   color: 'white',
-  fontSize: 16,
+  fontSize: 18,
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
@@ -132,56 +137,54 @@ const COUNTER_BTN: CSSProperties = {
 };
 
 const COUNT_DISPLAY: CSSProperties = {
-  minWidth: 24,
+  minWidth: 28,
   textAlign: 'center',
-  fontSize: 14,
+  fontSize: 15,
   fontWeight: 'bold',
 };
 
-const INPUT_STYLE: CSSProperties = {
-  width: 64,
-  padding: '4px 8px',
-  background: 'rgba(255,255,255,0.1)',
-  border: '1px solid rgba(255,255,255,0.3)',
+const SELECT_STYLE: CSSProperties = {
+  padding: '8px 10px',
+  background: 'rgba(0,0,0,0.5)',
+  border: '1px solid rgba(255,255,255,0.35)',
   borderRadius: 6,
   color: 'white',
-  fontSize: 13,
+  fontSize: 14,
+  cursor: 'pointer',
+  minWidth: 90,
 };
 
-const RADIO_GROUP: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-};
+const RADIO_GROUP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };
 
 const RADIO_ROW: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 8,
+  gap: 10,
   cursor: 'pointer',
+  fontSize: 14,
 };
 
 const HINT: CSSProperties = {
   fontSize: 11,
   color: 'rgba(255,255,255,0.45)',
-  marginTop: 2,
+  marginTop: 4,
 };
 
 const START_BTN: CSSProperties = {
   width: '100%',
-  padding: '14px',
+  padding: '16px',
   background: '#27ae60',
   border: 'none',
   borderRadius: 10,
   color: 'white',
-  fontSize: 16,
+  fontSize: 17,
   fontWeight: 'bold',
   cursor: 'pointer',
   marginTop: 8,
   boxShadow: '0 3px 10px rgba(0,0,0,0.4)',
 };
 
-// ── Counter component ─────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function Counter({ value, onChange, min = 0, max = 9 }: {
   value: number;
@@ -190,11 +193,27 @@ function Counter({ value, onChange, min = 0, max = 9 }: {
   max?: number;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <button style={COUNTER_BTN} onClick={() => onChange(Math.max(min, value - 1))}>−</button>
       <span style={COUNT_DISPLAY}>{value}</span>
       <button style={COUNTER_BTN} onClick={() => onChange(Math.min(max, value + 1))}>+</button>
     </div>
+  );
+}
+
+function NumSelect({ value, opts, onChange }: {
+  value: number;
+  opts: number[];
+  onChange: (n: number) => void;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(Number(e.target.value))}
+      style={SELECT_STYLE}
+    >
+      {opts.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
   );
 }
 
@@ -208,12 +227,12 @@ export default function SetupScreen() {
     setLc(prev => ({ ...prev, ...partial }));
   }
 
-  function setDieCount(faces: DieSides, count: number) {
-    patch({ dieCounts: { ...lc.dieCounts, [faces]: count } });
+  function setDieCount(faces: DieSides, n: number) {
+    patch({ dieCounts: { ...lc.dieCounts, [faces]: n } });
   }
 
-  function setPawnCount(color: string, count: number) {
-    patch({ pawnCounts: { ...lc.pawnCounts, [color]: count } });
+  function setPawnCount(color: string, n: number) {
+    patch({ pawnCounts: { ...lc.pawnCounts, [color]: n } });
   }
 
   function toggleSeriesColor(color: string) {
@@ -223,173 +242,114 @@ export default function SetupScreen() {
     patch({ seriesColors: next });
   }
 
-  function handleStart() {
-    buildInitialState(toTableConfig(lc));
-  }
-
   const totalCards = deckCardCount(lc);
-  const totalDice = DIE_FACES.reduce((sum, f) => sum + (lc.dieCounts[f] ?? 0), 0);
-  const totalPawns = PAWN_COLORS.reduce((sum, c) => sum + (lc.pawnCounts[c] ?? 0), 0);
+  const totalDice  = DIE_FACES.reduce((s, f) => s + (lc.dieCounts[f] ?? 0), 0);
+  const totalPawns = PAWN_COLORS.reduce((s, c) => s + (lc.pawnCounts[c] ?? 0), 0);
 
   return (
     <div style={WRAP}>
       <div style={CARD_BOX}>
-        {/* Title */}
+
         <h1 style={{ fontSize: 22, fontWeight: 'bold', textAlign: 'center', marginBottom: 24, color: '#f0e68c' }}>
           Configuration / Setup
         </h1>
 
-        {/* ── Dice ── */}
+        {/* ── Dés / Dice ── */}
         <div style={SECTION}>
           <div style={SECTION_TITLE}>Dés / Dice</div>
           {DIE_FACES.map(f => (
             <div key={f} style={ROW}>
-              <span style={LABEL}>d{f}</span>
-              <Counter
-                value={lc.dieCounts[f] ?? 0}
-                onChange={n => setDieCount(f, n)}
-                max={6}
-              />
+              <span style={{ ...LABEL, minWidth: 36 }}>d{f}</span>
+              <Counter value={lc.dieCounts[f] ?? 0} onChange={n => setDieCount(f, n)} max={6} />
             </div>
           ))}
-          {totalDice === 0 && <p style={HINT}>Aucun dé / No dice</p>}
-          {totalDice > 0 && (
-            <p style={HINT}>
-              {DIE_FACES.filter(f => (lc.dieCounts[f] ?? 0) > 0)
-                .map(f => `${lc.dieCounts[f]}d${f}`)
-                .join(', ')}
-            </p>
-          )}
+          <p style={HINT}>
+            {totalDice === 0
+              ? 'Aucun dé / No dice'
+              : DIE_FACES.filter(f => (lc.dieCounts[f] ?? 0) > 0).map(f => `${lc.dieCounts[f]}d${f}`).join(', ')
+            }
+          </p>
         </div>
 
-        {/* ── Board ── */}
+        {/* ── Plateau / Board ── */}
         <div style={SECTION}>
           <div style={SECTION_TITLE}>Plateau / Board</div>
           <div style={RADIO_GROUP}>
             {(['none', 'grid', 'path', 'freeTiles'] as BoardKind[]).map(kind => (
               <label key={kind} style={RADIO_ROW}>
-                <input
-                  type="radio"
-                  name="board"
-                  value={kind}
-                  checked={lc.boardKind === kind}
-                  onChange={() => patch({ boardKind: kind })}
-                />
-                <span style={{ fontSize: 13 }}>
-                  {kind === 'none'      ? 'Aucun / None' :
-                   kind === 'grid'      ? 'Grille / Grid' :
-                   kind === 'path'      ? 'Parcours / Path' :
-                                          'Surface libre / Free surface'}
-                </span>
+                <input type="radio" name="board" checked={lc.boardKind === kind} onChange={() => patch({ boardKind: kind })} />
+                {kind === 'none'      ? 'Aucun / None' :
+                 kind === 'grid'      ? 'Grille / Grid' :
+                 kind === 'path'      ? 'Parcours / Path' :
+                                        'Surface libre / Free surface'}
               </label>
             ))}
           </div>
 
           {lc.boardKind === 'grid' && (
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={ROW}>
                 <span style={LABEL}>Colonnes / Cols</span>
-                <input
-                  type="number"
-                  min={2} max={20}
-                  value={lc.gridCols}
-                  onChange={e => patch({ gridCols: Math.max(2, Math.min(20, Number(e.target.value))) })}
-                  style={INPUT_STYLE}
-                />
+                <NumSelect value={lc.gridCols} opts={GRID_SIZE_OPTS} onChange={n => patch({ gridCols: n })} />
               </div>
               <div style={ROW}>
                 <span style={LABEL}>Rangées / Rows</span>
-                <input
-                  type="number"
-                  min={2} max={20}
-                  value={lc.gridRows}
-                  onChange={e => patch({ gridRows: Math.max(2, Math.min(20, Number(e.target.value))) })}
-                  style={INPUT_STYLE}
-                />
+                <NumSelect value={lc.gridRows} opts={GRID_SIZE_OPTS} onChange={n => patch({ gridRows: n })} />
               </div>
             </div>
           )}
 
           {lc.boardKind === 'path' && (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 12 }}>
               <div style={ROW}>
                 <span style={LABEL}>Longueur / Length</span>
-                <input
-                  type="number"
-                  min={4} max={100}
-                  value={lc.pathLength}
-                  onChange={e => patch({ pathLength: Math.max(4, Math.min(100, Number(e.target.value))) })}
-                  style={INPUT_STYLE}
-                />
+                <NumSelect value={lc.pathLength} opts={PATH_LEN_OPTS} onChange={n => patch({ pathLength: n })} />
               </div>
             </div>
           )}
         </div>
 
-        {/* ── Deck ── */}
+        {/* ── Paquet / Deck ── */}
         <div style={SECTION}>
           <div style={SECTION_TITLE}>Paquet / Deck</div>
           <div style={RADIO_GROUP}>
             {(['none', 'standard52', 'numbered', 'coloredSeries'] as DeckKind[]).map(kind => (
               <label key={kind} style={RADIO_ROW}>
-                <input
-                  type="radio"
-                  name="deck"
-                  value={kind}
-                  checked={lc.deckKind === kind}
-                  onChange={() => patch({ deckKind: kind })}
-                />
-                <span style={{ fontSize: 13 }}>
-                  {kind === 'none'          ? 'Aucun / None' :
-                   kind === 'standard52'    ? 'Standard (52)' :
-                   kind === 'numbered'      ? 'Numéroté / Numbered' :
-                                              'Séries colorées / Colored series'}
-                </span>
+                <input type="radio" name="deck" checked={lc.deckKind === kind} onChange={() => patch({ deckKind: kind })} />
+                {kind === 'none'          ? 'Aucun / None' :
+                 kind === 'standard52'    ? 'Standard (52)' :
+                 kind === 'numbered'      ? 'Numéroté / Numbered' :
+                                            'Séries colorées / Colored series'}
               </label>
             ))}
           </div>
 
           {lc.deckKind === 'numbered' && (
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 12 }}>
               <div style={ROW}>
                 <span style={LABEL}>Quantité / Count</span>
-                <input
-                  type="number"
-                  min={1} max={200}
-                  value={lc.numberedCount}
-                  onChange={e => patch({ numberedCount: Math.max(1, Math.min(200, Number(e.target.value))) })}
-                  style={INPUT_STYLE}
-                />
+                <NumSelect value={lc.numberedCount} opts={NUM_COUNT_OPTS} onChange={n => patch({ numberedCount: n })} />
               </div>
             </div>
           )}
 
           {lc.deckKind === 'coloredSeries' && (
-            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={ROW}>
-                <span style={LABEL}>Cartes/couleur<br/>per color</span>
-                <input
-                  type="number"
-                  min={1} max={50}
-                  value={lc.seriesPerColor}
-                  onChange={e => patch({ seriesPerColor: Math.max(1, Math.min(50, Number(e.target.value))) })}
-                  style={INPUT_STYLE}
-                />
+                <span style={LABEL}>Cartes/couleur / per color</span>
+                <NumSelect value={lc.seriesPerColor} opts={PER_COLOR_OPTS} onChange={n => patch({ seriesPerColor: n })} />
               </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {SERIES_COLORS.map(c => (
                   <button
                     key={c}
                     onClick={() => toggleSeriesColor(c)}
-                    title={`Couleur / Color ${c}`}
                     style={{
-                      width: 30,
-                      height: 30,
+                      width: 34,
+                      height: 34,
                       borderRadius: 4,
                       background: c,
-                      border: lc.seriesColors.includes(c)
-                        ? '3px solid white'
-                        : '3px solid transparent',
+                      border: lc.seriesColors.includes(c) ? '3px solid white' : '3px solid transparent',
                       cursor: 'pointer',
                     }}
                   />
@@ -403,28 +363,25 @@ export default function SetupScreen() {
           )}
         </div>
 
-        {/* ── Pawns ── */}
+        {/* ── Pions / Pawns ── */}
         <div style={SECTION}>
           <div style={SECTION_TITLE}>Pions / Pawns</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {PAWN_COLORS.map(c => (
               <div key={c} style={ROW}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: c, border: '2px solid rgba(255,255,255,0.4)', flexShrink: 0 }} />
-                <Counter
-                  value={lc.pawnCounts[c] ?? 0}
-                  onChange={n => setPawnCount(c, n)}
-                  max={4}
-                />
+                <div style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: '2px solid rgba(255,255,255,0.4)', flexShrink: 0 }} />
+                <Counter value={lc.pawnCounts[c] ?? 0} onChange={n => setPawnCount(c, n)} max={4} />
               </div>
             ))}
           </div>
           {totalPawns === 0 && <p style={HINT}>Aucun pion / No pawns</p>}
         </div>
 
-        {/* ── Start button ── */}
-        <button style={START_BTN} onClick={handleStart}>
+        {/* ── Start ── */}
+        <button style={START_BTN} onClick={() => buildInitialState(toTableConfig(lc))}>
           Démarrer / Start
         </button>
+
       </div>
     </div>
   );
