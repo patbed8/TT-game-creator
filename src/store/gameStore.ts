@@ -95,6 +95,7 @@ interface GameStore extends GameState {
   // Phase 4 actions
   buildInitialState: (config: TableConfig) => void;
   goToTable: () => void;
+  goToSetup: () => void;
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
@@ -176,6 +177,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   goToTable() {
     set({ screen: 'table' });
+  },
+
+  goToSetup() {
+    set({
+      screen: 'setup',
+      hasDeck: false,
+      deck: [],
+      discard: [],
+      players: PLAYER_DEFS.map(p => ({ ...p, hand: [] })),
+      activePlayerId: 'player1',
+      board: null,
+      pawns: [],
+      dice: [],
+      tiles: [],
+    });
   },
 
   buildInitialState(config: TableConfig) {

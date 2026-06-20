@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useRef, useState, useCallback } from 'react';
 import { Stage, Layer } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { useGameStore } from '../store/gameStore';
@@ -48,8 +48,21 @@ export default function GameTable() {
   const { w, h } = useWindowSize();
   const {
     deck, discard, players, activePlayerId, board, pawns, dice, tiles, hasDeck,
-    drawCard, playCard, endTurn, rollDice, addTile,
+    drawCard, playCard, endTurn, rollDice, addTile, goToSetup,
   } = useGameStore();
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) closeMenu();
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [menuOpen, closeMenu]);
 
   const activePlayer = players.find(p => p.id === activePlayerId);
 
@@ -220,20 +233,55 @@ export default function GameTable() {
           Lancer le dé / Roll die
         </button>
 
-        {/* Interaction hints */}
-        <div
-          style={{
-            color: 'rgba(255,255,255,0.55)',
-            fontSize: 11,
-            textAlign: 'right',
-            textShadow: '0 1px 2px rgba(0,0,0,0.7)',
-            lineHeight: 1.6,
-          }}
-        >
-          Clic/Tap : retourner / Flip<br />
-          Dbl-clic/Tap : jouer / Play<br />
-          Glisser : déplacer / Drag<br />
-          2 doigts : zoom + pan
+        {/* Menu button */}
+        <div style={{ position: 'relative' }} ref={menuRef}>
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            style={{ ...BTN, background: 'rgba(0,0,0,0.55)', fontSize: 18, padding: '8px 14px' }}
+            onMouseOver={hover}
+            onMouseOut={unhover}
+            aria-label="Menu"
+          >
+            ☰
+          </button>
+
+          {menuOpen && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: 6,
+              background: 'rgba(20,20,20,0.92)',
+              borderRadius: 8,
+              padding: '10px 14px',
+              minWidth: 210,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+            }}>
+              <div style={{
+                color: 'rgba(255,255,255,0.65)',
+                fontSize: 12,
+                lineHeight: 1.7,
+                textShadow: '0 1px 2px rgba(0,0,0,0.7)',
+              }}>
+                Clic/Tap : retourner / Flip<br />
+                Dbl-clic/Tap : jouer / Play<br />
+                Glisser : déplacer / Drag<br />
+                2 doigts : zoom + pan
+              </div>
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.15)', margin: 0 }} />
+              <button
+                onClick={() => { closeMenu(); goToSetup(); }}
+                style={{ ...BTN, background: '#7f8c8d', textAlign: 'left' }}
+                onMouseOver={hover}
+                onMouseOut={unhover}
+              >
+                Nouvelle partie / New game
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
