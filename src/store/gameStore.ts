@@ -7,7 +7,6 @@ import { createDeck, shuffleDeck } from '../engine/deckUtils';
 import { createGridBoard, createPathBoard } from '../data/boards';
 import { generateDeck } from '../engine/deckGenerator';
 import {
-  dealInitialHands,
   drawCardFromDeck,
   playCardToShared,
   flipCardById,
@@ -78,6 +77,7 @@ function makeInitialPawns(board: BoardLayout): Pawn[] {
 
 interface GameStore extends GameState {
   screen: 'setup' | 'table';
+  hasDeck: boolean;
   // Phase 1 actions
   drawCard: () => void;
   playCard: (cardId: string) => void;
@@ -102,6 +102,7 @@ interface GameStore extends GameState {
 export const useGameStore = create<GameStore>((set, get) => ({
   // ── Initial state (empty — populated by buildInitialState) ─────────────────
   screen: 'setup',
+  hasDeck: false,
   deck: [],
   discard: [],
   players: PLAYER_DEFS.map(p => ({ ...p, hand: [] })),
@@ -184,26 +185,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 1. Generate and shuffle deck
     const rawCards = config.deck ? shuffleDeck(generateDeck(config.deck)) : [];
 
-    // 2. Deal initial hands
-    let remainingDeck: typeof rawCards;
-    let players: Player[];
-    if (rawCards.length > 0) {
-      const { deck: remaining, players: dealt } = dealInitialHands(rawCards, playerDefs.map(p => p.id));
-      remainingDeck = remaining;
-      const hy = handY();
-      players = dealt.map((p, i) => ({
-        ...p,
-        name: playerDefs[i].name,
-        hand: p.hand.map((card, ci) => ({
-          ...card,
-          x: HAND_MARGIN_X + ci * (CARD_W + CARD_GAP),
-          y: hy,
-        })),
-      }));
-    } else {
-      remainingDeck = [];
-      players = playerDefs.map(p => ({ ...p, hand: [] }));
-    }
+    // 2. All cards start in the deck; players begin with empty hands
+    const remainingDeck = rawCards;
+    const players: Player[] = playerDefs.map(p => ({ ...p, hand: [] }));
 
     // 3. Create runtime board layout from setup config
     let board: BoardLayout | null = null;
@@ -255,6 +239,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       screen: 'table',
+      hasDeck: rawCards.length > 0,
       deck: remainingDeck,
       discard: [],
       players,

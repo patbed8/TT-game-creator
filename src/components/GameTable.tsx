@@ -47,8 +47,8 @@ function unhover(e: React.MouseEvent<HTMLButtonElement>) {
 export default function GameTable() {
   const { w, h } = useWindowSize();
   const {
-    deck, discard, players, activePlayerId, board, pawns, dice, tiles,
-    drawCard, playCard, endTurn, rollDice, toggleBoardType, addTile,
+    deck, discard, players, activePlayerId, board, pawns, dice, tiles, hasDeck,
+    drawCard, playCard, endTurn, rollDice, addTile,
   } = useGameStore();
 
   const activePlayer = players.find(p => p.id === activePlayerId);
@@ -127,21 +127,23 @@ export default function GameTable() {
             <TileComponent key={tile.id} tile={tile} />
           ))}
 
-          {/* Hand and shared zone backgrounds */}
-          {activePlayer && (
+          {/* Hand and shared zone backgrounds — only when a deck was configured */}
+          {hasDeck && activePlayer && (
             <Hand playerName={activePlayer.name} tableWidth={w} cardHeight={CARD_H} zoneY={handY} />
           )}
-          <SharedZone centerX={w / 2} y={70} cardHeight={CARD_H} />
+          {hasDeck && <SharedZone centerX={w / 2} y={70} cardHeight={CARD_H} />}
 
-          {/* Deck and die (top-left area) */}
-          <DeckZone
-            x={30}
-            y={60}
-            cardCount={deck.length}
-            cardWidth={CARD_W}
-            cardHeight={CARD_H}
-            onDraw={drawCard}
-          />
+          {/* Deck (top-left area) — only when a deck was configured */}
+          {hasDeck && (
+            <DeckZone
+              x={30}
+              y={60}
+              cardCount={deck.length}
+              cardWidth={CARD_W}
+              cardHeight={CARD_H}
+              onDraw={drawCard}
+            />
+          )}
           {dice.map(die => (
             <DieComponent key={die.id} x={die.x} y={die.y} faces={die.faces} result={die.lastResult} />
           ))}
@@ -216,17 +218,6 @@ export default function GameTable() {
           onMouseOut={unhover}
         >
           Lancer le dé / Roll die
-        </button>
-
-        <button
-          onClick={toggleBoardType}
-          style={{ ...BTN, background: '#27ae60' }}
-          onMouseOver={hover}
-          onMouseOut={unhover}
-        >
-          {board?.type === 'grid'
-            ? 'Parcours / Path board'
-            : 'Grille / Grid board'}
         </button>
 
         {/* Interaction hints */}
