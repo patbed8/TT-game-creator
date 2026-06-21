@@ -64,14 +64,29 @@ export default function DeckZone({ x, y, label, cardCount, discardCount, cardWid
           />
         </Group>
       ) : (
-        <Rect
-          width={cardWidth}
-          height={cardHeight}
-          stroke="rgba(255,255,255,0.25)"
-          strokeWidth={1.5}
-          cornerRadius={6}
-          dash={[6, 4]}
-        />
+        // Empty deck — clickable if discard has cards (triggers auto-reshuffle in engine)
+        <Group onClick={discardCount > 0 ? handleDraw : undefined} onTap={discardCount > 0 ? handleDraw : undefined}>
+          <Rect
+            width={cardWidth}
+            height={cardHeight}
+            fill={discardCount > 0 ? 'rgba(255,200,100,0.08)' : 'transparent'}
+            stroke={discardCount > 0 ? 'rgba(255,200,100,0.55)' : 'rgba(255,255,255,0.25)'}
+            strokeWidth={1.5}
+            cornerRadius={6}
+            dash={[6, 4]}
+          />
+          {discardCount > 0 && (
+            <Text
+              width={cardWidth}
+              height={cardHeight}
+              text="↺"
+              align="center"
+              verticalAlign="middle"
+              fontSize={30}
+              fill="rgba(255,200,100,0.75)"
+            />
+          )}
+        </Group>
       )}
       <Text
         y={cardHeight + 6}
