@@ -1,4 +1,5 @@
-import type { Card, CellId, GameState, Player, Tile, TileShape } from '../types';
+import type { Card, CellId, DeckInstance, GameState, Player, Tile, TileShape } from '../types';
+import { shuffleDeck } from './deckUtils';
 import { findSnapPosition } from './tileUtils';
 
 const INITIAL_HAND_SIZE = 5;
@@ -10,38 +11,48 @@ export interface DealResult {
 
 export function dealInitialHands(deck: Card[], playerIds: string[]): DealResult {
   const remaining = [...deck];
-  const players: Array<{ id: string; hand: Card[] }> = playerIds.map(id => ({
-    id,
-    hand: [],
-  }));
-
+  const players: Array<{ id: string; hand: Card[] }> = playerIds.map(id => ({ id, hand: [] }));
   for (let round = 0; round < INITIAL_HAND_SIZE; round++) {
     for (const player of players) {
       const card = remaining.shift();
       if (card) player.hand.push({ ...card, face: 'face-down' });
     }
   }
-
   return { deck: remaining, players };
 }
 
+// ── Deck / card actions ───────────────────────────────────────────────────────
+
 export function drawCardFromDeck(
   state: GameState,
+  deckId: string,
   targetX: number,
   targetY: number,
 ): Partial<GameState> {
-  if (state.deck.length === 0) return {};
+  const deckIdx = state.decks.findIndex(d => d.id === deckId);
+  if (deckIdx < 0) return {};
 
-  const [drawn, ...deck] = state.deck;
+  let { cards, discard } = state.decks[deckIdx];
+
+  // Auto-reshuffle discard back into deck when exhausted
+  if (cards.length === 0) {
+    if (discard.length === 0) return {};
+    cards = shuffleDeck([...discard]).map(c => ({ ...c, face: 'face-down' as const }));
+    discard = [];
+  }
+
+  const [drawn, ...remaining] = cards;
   const card: Card = { ...drawn, face: 'face-up', x: targetX, y: targetY };
 
   const players = state.players.map((p): Player =>
-    p.id === state.activePlayerId
-      ? { ...p, hand: [...p.hand, card] }
-      : p,
+    p.id === state.activePlayerId ? { ...p, hand: [...p.hand, card] } : p,
   );
 
-  return { deck, players };
+  const decks: DeckInstance[] = state.decks.map((d, i) =>
+    i === deckIdx ? { ...d, cards: remaining, discard } : d,
+  );
+
+  return { decks, players };
 }
 
 export function playCardToShared(
@@ -61,18 +72,22 @@ export function playCardToShared(
   });
 
   if (!played) return {};
-  return { players, discard: [...state.discard, played] };
+
+  const deckIdx = state.decks.findIndex(d => d.id === played!.deckId);
+  const decks: DeckInstance[] = state.decks.map((d, i) =>
+    i === deckIdx ? { ...d, discard: [...d.discard, played!] } : d,
+  );
+
+  return { players, decks };
 }
 
 export function flipCardById(state: GameState, cardId: string): Partial<GameState> {
   const toggle = (c: Card): Card =>
-    c.id === cardId
-      ? { ...c, face: c.face === 'face-up' ? 'face-down' : 'face-up' }
-      : c;
+    c.id === cardId ? { ...c, face: c.face === 'face-up' ? 'face-down' : 'face-up' } : c;
 
   return {
     players: state.players.map(p => ({ ...p, hand: p.hand.map(toggle) })),
-    discard: state.discard.map(toggle),
+    decks: state.decks.map(d => ({ ...d, discard: d.discard.map(toggle) })),
   };
 }
 
@@ -86,7 +101,7 @@ export function moveCardById(
 
   return {
     players: state.players.map(p => ({ ...p, hand: p.hand.map(reposition) })),
-    discard: state.discard.map(reposition),
+    decks: state.decks.map(d => ({ ...d, discard: d.discard.map(reposition) })),
   };
 }
 
@@ -96,7 +111,7 @@ export function advanceToNextPlayer(state: GameState): Partial<GameState> {
   return { activePlayerId: next.id };
 }
 
-// ── Phase 2: board & dice ────────────────────────────────────────────────────
+// ── Phase 2: board & dice ─────────────────────────────────────────────────────
 
 export function movePawn(
   state: GameState,
@@ -106,19 +121,24 @@ export function movePawn(
   if (!state.board) return {};
   const cell = state.board.cells.find(c => c.id === targetCellId);
   if (!cell) return {};
-
-  const pawns = state.pawns.map(p =>
-    p.id === pawnId ? { ...p, cellId: targetCellId, x: cell.x, y: cell.y } : p,
-  );
-  return { pawns };
+  return {
+    pawns: state.pawns.map(p =>
+      p.id === pawnId ? { ...p, cellId: targetCellId, x: cell.x, y: cell.y } : p,
+    ),
+  };
 }
 
 export function rollDice(state: GameState): Partial<GameState> {
   return {
-    dice: state.dice.map(die => ({
-      ...die,
-      lastResult: Math.floor(Math.random() * die.faces) + 1,
-    })),
+    dice: state.dice.map(die => ({ ...die, lastResult: Math.floor(Math.random() * die.faces) + 1 })),
+  };
+}
+
+export function rollSingleDie(state: GameState, dieId: string): Partial<GameState> {
+  return {
+    dice: state.dice.map(die =>
+      die.id === dieId ? { ...die, lastResult: Math.floor(Math.random() * die.faces) + 1 } : die,
+    ),
   };
 }
 
@@ -132,31 +152,16 @@ export function addTile(
   y: number,
   size: number,
 ): Partial<GameState> {
-  const tile: Tile = {
-    id: 'tile-' + Math.random().toString(36).slice(2, 11),
-    shape,
-    color,
-    x,
-    y,
-    size,
-  };
+  const tile: Tile = { id: 'tile-' + Math.random().toString(36).slice(2, 11), shape, color, x, y, size };
   return { tiles: [...state.tiles, tile] };
 }
 
-export function moveTile(
-  state: GameState,
-  tileId: string,
-  x: number,
-  y: number,
-): Partial<GameState> {
+export function moveTile(state: GameState, tileId: string, x: number, y: number): Partial<GameState> {
   const tile = state.tiles.find(t => t.id === tileId);
   if (!tile) return {};
-
   const others = state.tiles.filter(t => t.id !== tileId);
   const snap = findSnapPosition(others, tile.shape, x, y, tile.size);
-  const pos = snap ?? { x, y };
-
-  return { tiles: state.tiles.map(t => t.id === tileId ? { ...t, ...pos } : t) };
+  return { tiles: state.tiles.map(t => t.id === tileId ? { ...t, ...(snap ?? { x, y }) } : t) };
 }
 
 export function removeTile(state: GameState, tileId: string): Partial<GameState> {

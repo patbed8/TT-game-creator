@@ -8,14 +8,15 @@ export type Rank =
 
 export interface Card {
   id: string;
-  rank?: Rank;       // defined for standard52; optional for other deck types
+  rank?: Rank;
   suit?: Suit;
   face: CardFace;
   x: number;
   y: number;
-  value?: number;    // for numbered / colored-series decks
-  color?: string;    // card background accent color
-  label?: string;    // override center display text if set
+  value?: number;
+  color?: string;
+  label?: string;
+  deckId?: string;   // source deck — routes played cards to the right discard pile
 }
 
 export interface Player {
@@ -38,7 +39,6 @@ export interface Cell {
 
 export type BoardType = 'grid' | 'path';
 
-// Runtime board layout (renamed from BoardConfig to avoid collision with setup type)
 export interface BoardLayout {
   type: BoardType;
   cells: Cell[];
@@ -61,9 +61,9 @@ export type TileShape = 'square' | 'hexagon';
 export interface Tile {
   id: string;
   shape: TileShape;
-  x: number;          // canvas center position
+  x: number;
   y: number;
-  size: number;       // square: side length; hexagon: circumradius (center → vertex)
+  size: number;
   color: string;
   content?: string;
 }
@@ -72,7 +72,6 @@ export interface Tile {
 
 export type DieSides = 4 | 6 | 8 | 10 | 12 | 20;
 
-// Runtime die instance (replaces DiceState, now supports multiple dice)
 export interface Die {
   id: string;
   faces: DieSides;
@@ -86,7 +85,6 @@ export interface DieConfig {
   count: number;
 }
 
-// Setup-time board configuration (discriminated union)
 export type BoardConfig =
   | { kind: 'none' }
   | { kind: 'grid'; cols: number; rows: number }
@@ -103,19 +101,27 @@ export interface PawnConfig {
   count: number;
 }
 
+// ── Deck instance (runtime) ───────────────────────────────────────────────────
+
+export interface DeckInstance {
+  id: string;
+  label: string;
+  cards: Card[];     // remaining undrawn cards
+  discard: Card[];   // played / discarded cards
+}
+
 export interface TableConfig {
   dice: DieConfig[];
   board: BoardConfig;
-  deck: DeckSpec | null;
+  decks: DeckSpec[];   // [] = no decks; supports multiple
   pawns: PawnConfig[];
-  players: number;       // fixed at 2 for Phase 4
+  players: number;
 }
 
 // ── Game state ────────────────────────────────────────────────────────────────
 
 export interface GameState {
-  deck: Card[];
-  discard: Card[];
+  decks: DeckInstance[];
   players: Player[];
   activePlayerId: string;
   board: BoardLayout | null;

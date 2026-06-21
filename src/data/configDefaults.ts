@@ -23,7 +23,7 @@ export const SERIES_COLORS = [
 export const DEFAULT_TABLE_CONFIG: TableConfig = {
   dice: [{ sides: 6, count: 1 }],
   board: { kind: 'grid', cols: 8, rows: 8 },
-  deck: { kind: 'standard52' },
+  decks: [{ kind: 'standard52' }],
   pawns: [
     { color: '#e74c3c', count: 1 },
     { color: '#3498db', count: 1 },

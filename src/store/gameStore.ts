@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type {
-  BoardLayout, BoardType, CellId, Die, DieSides,
+  BoardLayout, BoardType, CellId, DeckInstance, Die, DieSides,
   GameState, Pawn, Player, TableConfig, TileShape,
 } from '../types';
 import { createDeck, shuffleDeck } from '../engine/deckUtils';
@@ -14,6 +14,7 @@ import {
   advanceToNextPlayer,
   movePawn as engineMovePawn,
   rollDice as engineRollDice,
+  rollSingleDie as engineRollSingleDie,
   addTile as engineAddTile,
   moveTile as engineMoveTile,
   removeTile as engineRemoveTile,
@@ -30,7 +31,10 @@ const GRID_CELL_SIZE = 50;
 const PATH_CELL_SIZE = 60;
 const BOARD_TOP_Y = 200;
 
-const DIE_START_X = 150;
+// Deck zone layout: deck stack (70) + gap (10) + discard (70) + gap between zones (20)
+export const DECK_ZONE_WIDTH = 170;
+const DECK_START_X = 30;
+
 const DIE_SPACING = 70;
 const DIE_Y = 60;
 
@@ -77,9 +81,8 @@ function makeInitialPawns(board: BoardLayout): Pawn[] {
 
 interface GameStore extends GameState {
   screen: 'setup' | 'table';
-  hasDeck: boolean;
   // Phase 1 actions
-  drawCard: () => void;
+  drawCard: (deckId: string) => void;
   playCard: (cardId: string) => void;
   flipCard: (cardId: string) => void;
   moveCard: (cardId: string, x: number, y: number) => void;
@@ -87,6 +90,7 @@ interface GameStore extends GameState {
   // Phase 2 actions
   movePawn: (pawnId: string, targetCellId: CellId) => void;
   rollDice: () => void;
+  rollDie: (dieId: string) => void;
   toggleBoardType: () => void;
   // Phase 3 actions
   addTile: (shape: TileShape, color: string, x: number, y: number, size: number) => void;
@@ -103,9 +107,7 @@ interface GameStore extends GameState {
 export const useGameStore = create<GameStore>((set, get) => ({
   // ── Initial state (empty — populated by buildInitialState) ─────────────────
   screen: 'setup',
-  hasDeck: false,
-  deck: [],
-  discard: [],
+  decks: [],
   players: PLAYER_DEFS.map(p => ({ ...p, hand: [] })),
   activePlayerId: 'player1',
   board: null,
@@ -115,18 +117,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // ── Phase 1 actions ────────────────────────────────────────────────────────
 
-  drawCard() {
+  drawCard(deckId) {
     const state = get();
-    if (state.deck.length === 0) return;
     const active = state.players.find(p => p.id === state.activePlayerId);
     if (!active) return;
     const x = HAND_MARGIN_X + active.hand.length * (CARD_W + CARD_GAP);
     const y = handY();
-    set(s => drawCardFromDeck(s, x, y));
+    set(s => drawCardFromDeck(s, deckId, x, y));
   },
 
   playCard(cardId) {
-    const { x, y } = sharedZonePos(get().discard.length);
+    const totalDiscard = get().decks.reduce((s, d) => s + d.discard.length, 0);
+    const { x, y } = sharedZonePos(totalDiscard);
     set(s => playCardToShared(s, cardId, x, y));
   },
 
@@ -150,6 +152,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   rollDice() {
     set(s => engineRollDice(s));
+  },
+
+  rollDie(dieId) {
+    set(s => engineRollSingleDie(s, dieId));
   },
 
   toggleBoardType() {
@@ -182,9 +188,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   goToSetup() {
     set({
       screen: 'setup',
-      hasDeck: false,
-      deck: [],
-      discard: [],
+      decks: [],
       players: PLAYER_DEFS.map(p => ({ ...p, hand: [] })),
       activePlayerId: 'player1',
       board: null,
@@ -198,14 +202,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const w = window.innerWidth;
     const playerDefs = PLAYER_DEFS.slice(0, config.players);
 
-    // 1. Generate and shuffle deck
-    const rawCards = config.deck ? shuffleDeck(generateDeck(config.deck)) : [];
+    // 1. Build deck instances — all cards start in the deck, players begin empty-handed
+    const decks: DeckInstance[] = config.decks.map((spec, i) => {
+      const raw = shuffleDeck(generateDeck(spec)).map(c => ({ ...c, deckId: `deck-${i}` }));
+      return {
+        id: `deck-${i}`,
+        label: `Paquet ${i + 1} / Deck ${i + 1}`,
+        cards: raw,
+        discard: [],
+      };
+    });
 
-    // 2. All cards start in the deck; players begin with empty hands
-    const remainingDeck = rawCards;
     const players: Player[] = playerDefs.map(p => ({ ...p, hand: [] }));
 
-    // 3. Create runtime board layout from setup config
+    // 2. Create runtime board layout from setup config
     let board: BoardLayout | null = null;
     const bc = config.board;
     if (bc.kind === 'grid') {
@@ -218,9 +228,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const originX = Math.max((w - boardW) / 2, 10);
       board = createPathBoard(bc.length, PATH_CELL_SIZE, originX, BOARD_TOP_Y);
     }
-    // 'none' and 'freeTiles' → board remains null
 
-    // 4. Create pawns
+    // 3. Create pawns
     const startCell = board?.cells[0];
     let pawnIdx = 0;
     const pawns: Pawn[] = config.pawns.flatMap(pc =>
@@ -237,8 +246,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }),
     );
 
-    // 5. Create dice — lay out horizontally from DIE_START_X
-    let dieX = DIE_START_X;
+    // 4. Create dice — start after the last deck zone
+    const dieStartX = decks.length > 0
+      ? DECK_START_X + decks.length * DECK_ZONE_WIDTH + 20
+      : DECK_START_X;
+    let dieX = dieStartX;
     const dice: Die[] = config.dice.flatMap(dc =>
       Array.from({ length: dc.count }, () => {
         const x = dieX;
@@ -255,9 +267,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({
       screen: 'table',
-      hasDeck: rawCards.length > 0,
-      deck: remainingDeck,
-      discard: [],
+      decks,
       players,
       activePlayerId: playerDefs[0].id,
       board,
@@ -268,5 +278,4 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 }));
 
-// Legacy helper kept for internal use by toggleBoardType
 export { createDeck, shuffleDeck };
