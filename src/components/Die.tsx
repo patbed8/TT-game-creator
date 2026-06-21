@@ -4,20 +4,21 @@ interface DieProps {
   x: number;
   y: number;
   faces: number;
+  label: string;
   result: number | null;
   onRoll?: () => void;
 }
 
 const SIZE = 52;
 
-export default function DieComponent({ x, y, faces, result, onRoll }: DieProps) {
+export default function DieComponent({ x, y, faces, label, result, onRoll }: DieProps) {
   return (
     <Group x={x} y={y} onClick={onRoll} onTap={onRoll}>
       <Text
         y={-18}
-        text="Dé / Die"
+        text={label}
         fill="rgba(255,255,255,0.75)"
-        fontSize={13}
+        fontSize={12}
       />
       <Rect
         width={SIZE}

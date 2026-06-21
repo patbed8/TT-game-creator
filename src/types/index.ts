@@ -75,6 +75,7 @@ export type DieSides = 4 | 6 | 8 | 10 | 12 | 20;
 export interface Die {
   id: string;
   faces: DieSides;
+  label: string;
   lastResult: number | null;
   x: number;
   y: number;
@@ -82,7 +83,7 @@ export interface Die {
 
 export interface DieConfig {
   sides: DieSides;
-  count: number;
+  label: string;   // one entry = one die (no count field)
 }
 
 export type BoardConfig =
@@ -92,9 +93,9 @@ export type BoardConfig =
   | { kind: 'freeTiles' };
 
 export type DeckSpec =
-  | { kind: 'standard52' }
-  | { kind: 'numbered'; count: number }
-  | { kind: 'coloredSeries'; colors: string[]; perColor: number };
+  | { kind: 'standard52'; label?: string }
+  | { kind: 'numbered'; count: number; label?: string }
+  | { kind: 'coloredSeries'; colors: string[]; perColor: number; label?: string };
 
 export interface PawnConfig {
   color: string;

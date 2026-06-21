@@ -21,7 +21,7 @@ export const SERIES_COLORS = [
 ];
 
 export const DEFAULT_TABLE_CONFIG: TableConfig = {
-  dice: [{ sides: 6, count: 1 }],
+  dice: [{ sides: 6, label: '' }],
   board: { kind: 'grid', cols: 8, rows: 8 },
   decks: [{ kind: 'standard52' }],
   pawns: [

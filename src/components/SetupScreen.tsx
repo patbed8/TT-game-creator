@@ -8,29 +8,38 @@ import { PAWN_COLORS, SERIES_COLORS } from '../data/configDefaults';
 type BoardKind = 'none' | 'grid' | 'path' | 'freeTiles';
 type DeckKind = 'standard52' | 'numbered' | 'coloredSeries';
 
-const DIE_FACES: DieSides[] = [4, 6, 8, 10, 12, 20];
+const ALL_DIE_FACES: DieSides[] = [4, 6, 8, 10, 12, 20];
 
 const GRID_SIZE_OPTS  = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20];
 const PATH_LEN_OPTS   = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
 const NUM_COUNT_OPTS  = [5, 10, 15, 20, 26, 30, 40, 52, 75, 100];
 const PER_COLOR_OPTS  = [1, 2, 3, 4, 5, 6, 8, 10, 13];
 
+interface DieEntry {
+  faces: DieSides;
+  label: string;
+}
+
 interface DeckEntry {
   kind: DeckKind;
+  label: string;
   numberedCount: number;
   seriesColors: string[];
   seriesPerColor: number;
 }
 
+const DEFAULT_DIE_ENTRY: DieEntry = { faces: 6, label: '' };
+
 const DEFAULT_DECK_ENTRY: DeckEntry = {
   kind: 'standard52',
+  label: '',
   numberedCount: 20,
   seriesColors: ['#e74c3c', '#3498db', '#27ae60', '#f39c12'],
   seriesPerColor: 5,
 };
 
 interface LocalConfig {
-  dieCounts: Partial<Record<DieSides, number>>;
+  dieEntries: DieEntry[];
   boardKind: BoardKind;
   gridCols: number;
   gridRows: number;
@@ -40,7 +49,7 @@ interface LocalConfig {
 }
 
 const DEFAULT_LOCAL: LocalConfig = {
-  dieCounts: { 6: 1 },
+  dieEntries: [{ faces: 6, label: '' }],
   boardKind: 'grid',
   gridCols: 8,
   gridRows: 8,
@@ -50,9 +59,10 @@ const DEFAULT_LOCAL: LocalConfig = {
 };
 
 function entryToSpec(e: DeckEntry): DeckSpec {
-  if (e.kind === 'standard52') return { kind: 'standard52' };
-  if (e.kind === 'numbered')   return { kind: 'numbered', count: e.numberedCount };
-  return { kind: 'coloredSeries', colors: e.seriesColors, perColor: e.seriesPerColor };
+  const label = e.label.trim() || undefined;
+  if (e.kind === 'standard52') return { kind: 'standard52', label };
+  if (e.kind === 'numbered')   return { kind: 'numbered', count: e.numberedCount, label };
+  return { kind: 'coloredSeries', colors: e.seriesColors, perColor: e.seriesPerColor, label };
 }
 
 function entryCardCount(e: DeckEntry): number {
@@ -62,9 +72,7 @@ function entryCardCount(e: DeckEntry): number {
 }
 
 function toTableConfig(lc: LocalConfig): TableConfig {
-  const dice = DIE_FACES
-    .filter(f => (lc.dieCounts[f] ?? 0) > 0)
-    .map(f => ({ sides: f, count: lc.dieCounts[f]! }));
+  const dice = lc.dieEntries.map(e => ({ sides: e.faces, label: e.label }));
 
   const board: BoardConfig =
     lc.boardKind === 'grid'      ? { kind: 'grid', cols: lc.gridCols, rows: lc.gridRows } :
@@ -162,6 +170,17 @@ const SELECT_STYLE: CSSProperties = {
   minWidth: 90,
 };
 
+const INPUT_STYLE: CSSProperties = {
+  padding: '8px 10px',
+  background: 'rgba(0,0,0,0.5)',
+  border: '1px solid rgba(255,255,255,0.35)',
+  borderRadius: 6,
+  color: 'white',
+  fontSize: 14,
+  flex: 1,
+  minWidth: 0,
+};
+
 const RADIO_GROUP: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };
 
 const RADIO_ROW: CSSProperties = {
@@ -241,6 +260,49 @@ function NumSelect({ value, opts, onChange }: {
   );
 }
 
+function DieEntryEditor({ index, entry, onChange, onRemove }: {
+  index: number;
+  entry: DieEntry;
+  onChange: (e: DieEntry) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div style={DECK_ENTRY_BOX}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 'bold', color: '#f0e68c' }}>
+          Dé {index + 1} / Die {index + 1}
+        </span>
+        <button
+          onClick={onRemove}
+          style={{ background: 'none', border: 'none', color: 'rgba(255,80,80,0.8)', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}
+        >
+          ✕
+        </button>
+      </div>
+      <div style={ROW}>
+        <span style={LABEL}>Type</span>
+        <select
+          value={entry.faces}
+          onChange={e => onChange({ ...entry, faces: Number(e.target.value) as DieSides })}
+          style={SELECT_STYLE}
+        >
+          {ALL_DIE_FACES.map(f => <option key={f} value={f}>d{f}</option>)}
+        </select>
+      </div>
+      <div style={ROW}>
+        <span style={LABEL}>Nom / Name</span>
+        <input
+          type="text"
+          value={entry.label}
+          onChange={e => onChange({ ...entry, label: e.target.value })}
+          placeholder={`d${entry.faces}`}
+          style={INPUT_STYLE}
+        />
+      </div>
+    </div>
+  );
+}
+
 function DeckEntryEditor({ index, entry, onChange, onRemove }: {
   index: number;
   entry: DeckEntry;
@@ -259,7 +321,7 @@ function DeckEntryEditor({ index, entry, onChange, onRemove }: {
 
   return (
     <div style={DECK_ENTRY_BOX}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 13, fontWeight: 'bold', color: '#f0e68c' }}>
           Paquet {index + 1} / Deck {index + 1}
         </span>
@@ -269,6 +331,16 @@ function DeckEntryEditor({ index, entry, onChange, onRemove }: {
         >
           ✕
         </button>
+      </div>
+      <div style={{ ...ROW, marginBottom: 10 }}>
+        <span style={LABEL}>Nom / Name</span>
+        <input
+          type="text"
+          value={entry.label}
+          onChange={e => patch({ label: e.target.value })}
+          placeholder={`Paquet ${index + 1} / Deck ${index + 1}`}
+          style={INPUT_STYLE}
+        />
       </div>
 
       <div style={RADIO_GROUP}>
@@ -330,30 +402,36 @@ export default function SetupScreen() {
     setLc(prev => ({ ...prev, ...partial }));
   }
 
-  function setDieCount(faces: DieSides, n: number) {
-    patch({ dieCounts: { ...lc.dieCounts, [faces]: n } });
-  }
-
   function setPawnCount(color: string, n: number) {
     patch({ pawnCounts: { ...lc.pawnCounts, [color]: n } });
+  }
+
+  function addDie() {
+    if (lc.dieEntries.length >= 8) return;
+    patch({ dieEntries: [...lc.dieEntries, { ...DEFAULT_DIE_ENTRY }] });
+  }
+  function removeDie(i: number) {
+    patch({ dieEntries: lc.dieEntries.filter((_, idx) => idx !== i) });
+  }
+  function updateDie(i: number, entry: DieEntry) {
+    const next = [...lc.dieEntries];
+    next[i] = entry;
+    patch({ dieEntries: next });
   }
 
   function addDeck() {
     if (lc.deckEntries.length >= 4) return;
     patch({ deckEntries: [...lc.deckEntries, { ...DEFAULT_DECK_ENTRY }] });
   }
-
   function removeDeck(i: number) {
     patch({ deckEntries: lc.deckEntries.filter((_, idx) => idx !== i) });
   }
-
   function updateDeck(i: number, entry: DeckEntry) {
     const next = [...lc.deckEntries];
     next[i] = entry;
     patch({ deckEntries: next });
   }
 
-  const totalDice  = DIE_FACES.reduce((s, f) => s + (lc.dieCounts[f] ?? 0), 0);
   const totalPawns = PAWN_COLORS.reduce((s, c) => s + (lc.pawnCounts[c] ?? 0), 0);
 
   return (
@@ -367,18 +445,13 @@ export default function SetupScreen() {
         {/* ── Dés / Dice ── */}
         <div style={SECTION}>
           <div style={SECTION_TITLE}>Dés / Dice</div>
-          {DIE_FACES.map(f => (
-            <div key={f} style={ROW}>
-              <span style={{ ...LABEL, minWidth: 36 }}>d{f}</span>
-              <Counter value={lc.dieCounts[f] ?? 0} onChange={n => setDieCount(f, n)} max={6} />
-            </div>
+          {lc.dieEntries.map((entry, i) => (
+            <DieEntryEditor key={i} index={i} entry={entry} onChange={e => updateDie(i, e)} onRemove={() => removeDie(i)} />
           ))}
-          <p style={HINT}>
-            {totalDice === 0
-              ? 'Aucun dé / No dice'
-              : DIE_FACES.filter(f => (lc.dieCounts[f] ?? 0) > 0).map(f => `${lc.dieCounts[f]}d${f}`).join(', ')
-            }
-          </p>
+          {lc.dieEntries.length === 0 && <p style={HINT}>Aucun dé / No dice</p>}
+          {lc.dieEntries.length < 8 && (
+            <button style={ADD_DECK_BTN} onClick={addDie}>+ Ajouter un dé / Add die</button>
+          )}
         </div>
 
         {/* ── Plateau / Board ── */}
