@@ -49,13 +49,6 @@ function handY(): number {
   return window.innerHeight - CARD_H - 40;
 }
 
-function sharedZonePos(offset: number): { x: number; y: number } {
-  return {
-    x: window.innerWidth / 2 - CARD_W / 2 + offset * 6,
-    y: 70 + offset * 6,
-  };
-}
-
 function makeBoardForType(type: BoardType): BoardLayout {
   const w = window.innerWidth;
   if (type === 'grid') {
@@ -127,8 +120,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   playCard(cardId) {
-    const totalDiscard = get().decks.reduce((s, d) => s + d.discard.length, 0);
-    const { x, y } = sharedZonePos(totalDiscard);
+    const state = get();
+    const card = state.players.find(p => p.id === state.activePlayerId)?.hand.find(c => c.id === cardId);
+    if (!card) return;
+    const deckIdx = state.decks.findIndex(d => d.id === card.deckId);
+    const discardCount = deckIdx >= 0 ? state.decks[deckIdx].discard.length : 0;
+    // Stack cards inside the deck's visual discard area (DeckZone: deck at 0, discard at CARD_W+10)
+    const x = DECK_START_X + Math.max(0, deckIdx) * DECK_ZONE_WIDTH + CARD_W + 10 + discardCount * 3;
+    const y = 60 + discardCount * 3;
     set(s => playCardToShared(s, cardId, x, y));
   },
 
