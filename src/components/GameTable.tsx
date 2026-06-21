@@ -161,6 +161,7 @@ export default function GameTable() {
               x={die.x}
               y={die.y}
               faces={die.faces}
+              label={die.label}
               result={die.lastResult}
               onRoll={() => rollDie(die.id)}
             />

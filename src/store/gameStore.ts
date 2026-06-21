@@ -206,7 +206,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const raw = shuffleDeck(generateDeck(spec)).map(c => ({ ...c, deckId: `deck-${i}` }));
       return {
         id: `deck-${i}`,
-        label: `Paquet ${i + 1} / Deck ${i + 1}`,
+        label: spec.label?.trim() || `Paquet ${i + 1} / Deck ${i + 1}`,
         cards: raw,
         discard: [],
       };
@@ -245,24 +245,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }),
     );
 
-    // 4. Create dice — start after the last deck zone
+    // 4. Create dice — each DieConfig entry is one die; start after the last deck zone
     const dieStartX = decks.length > 0
       ? DECK_START_X + decks.length * DECK_ZONE_WIDTH + 20
       : DECK_START_X;
     let dieX = dieStartX;
-    const dice: Die[] = config.dice.flatMap(dc =>
-      Array.from({ length: dc.count }, () => {
-        const x = dieX;
-        dieX += DIE_SPACING;
-        return {
-          id: `die-${dc.sides}-${Math.random().toString(36).slice(2, 7)}`,
-          faces: dc.sides as DieSides,
-          lastResult: null,
-          x,
-          y: DIE_Y,
-        };
-      }),
-    );
+    const dice: Die[] = config.dice.map(dc => {
+      const x = dieX;
+      dieX += DIE_SPACING;
+      return {
+        id: `die-${dc.sides}-${Math.random().toString(36).slice(2, 7)}`,
+        faces: dc.sides as DieSides,
+        label: dc.label.trim() || `d${dc.sides}`,
+        lastResult: null,
+        x,
+        y: DIE_Y,
+      };
+    });
 
     set({
       screen: 'table',
