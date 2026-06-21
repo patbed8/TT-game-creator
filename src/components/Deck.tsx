@@ -4,14 +4,17 @@ import { Group, Rect, Text } from 'react-konva';
 interface DeckProps {
   x: number;
   y: number;
+  label: string;
   cardCount: number;
+  discardCount: number;
   cardWidth: number;
   cardHeight: number;
   onDraw: () => void;
 }
 
-export default function DeckZone({ x, y, cardCount, cardWidth, cardHeight, onDraw }: DeckProps) {
+export default function DeckZone({ x, y, label, cardCount, discardCount, cardWidth, cardHeight, onDraw }: DeckProps) {
   const lastDrawTime = useRef(0);
+  const discardX = cardWidth + 10;
 
   function handleDraw() {
     const now = Date.now();
@@ -22,19 +25,19 @@ export default function DeckZone({ x, y, cardCount, cardWidth, cardHeight, onDra
 
   return (
     <Group x={x} y={y}>
+      {/* Deck label */}
       <Text
         y={-20}
-        text="Pioche / Deck"
+        text={label}
         fill="rgba(255,255,255,0.8)"
-        fontSize={13}
+        fontSize={12}
       />
 
+      {/* ── Deck stack ── */}
       {cardCount > 0 ? (
         <Group onClick={handleDraw} onTap={handleDraw}>
-          {/* Stacked shadow cards for depth */}
           <Rect x={4} y={4} width={cardWidth} height={cardHeight} fill="#0f2040" cornerRadius={6} />
           <Rect x={2} y={2} width={cardWidth} height={cardHeight} fill="#152a52" cornerRadius={6} />
-          {/* Top card */}
           <Rect
             width={cardWidth}
             height={cardHeight}
@@ -70,11 +73,48 @@ export default function DeckZone({ x, y, cardCount, cardWidth, cardHeight, onDra
           dash={[6, 4]}
         />
       )}
-
       <Text
         y={cardHeight + 6}
         text={`${cardCount} carte${cardCount !== 1 ? 's' : ''}`}
         fill="rgba(255,255,255,0.55)"
+        fontSize={11}
+      />
+
+      {/* ── Discard pile ── */}
+      <Text
+        x={discardX}
+        y={-20}
+        text="Défausse / Discard"
+        fill="rgba(255,255,255,0.55)"
+        fontSize={10}
+      />
+      <Rect
+        x={discardX}
+        width={cardWidth}
+        height={cardHeight}
+        fill={discardCount > 0 ? 'rgba(192,57,43,0.25)' : 'transparent'}
+        stroke="rgba(255,255,255,0.2)"
+        strokeWidth={1.5}
+        cornerRadius={6}
+        dash={discardCount === 0 ? [6, 4] : undefined}
+      />
+      {discardCount > 0 && (
+        <Text
+          x={discardX}
+          y={cardHeight / 2 - 10}
+          width={cardWidth}
+          text={String(discardCount)}
+          fill="rgba(255,255,255,0.8)"
+          fontSize={16}
+          fontStyle="bold"
+          align="center"
+        />
+      )}
+      <Text
+        x={discardX}
+        y={cardHeight + 6}
+        text={`${discardCount} défaussé${discardCount !== 1 ? 's' : ''}`}
+        fill="rgba(255,255,255,0.4)"
         fontSize={11}
       />
     </Group>

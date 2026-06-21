@@ -1,11 +1,10 @@
 import { type CSSProperties, useEffect, useRef, useState, useCallback } from 'react';
 import { Stage, Layer } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, DECK_ZONE_WIDTH } from '../store/gameStore';
 import CardComponent from './Card';
 import DeckZone from './Deck';
 import Hand from './Hand';
-import SharedZone from './SharedZone';
 import BoardComponent from './Board';
 import PawnComponent from './Pawn';
 import DieComponent from './Die';
@@ -14,6 +13,7 @@ import TilePalette from './TilePalette';
 
 const CARD_W = 70;
 const CARD_H = 100;
+const DECK_START_X = 30;
 
 function useWindowSize() {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
@@ -47,9 +47,16 @@ function unhover(e: React.MouseEvent<HTMLButtonElement>) {
 export default function GameTable() {
   const { w, h } = useWindowSize();
   const {
-    deck, discard, players, activePlayerId, board, pawns, dice, tiles, hasDeck,
-    drawCard, playCard, endTurn, rollDice, addTile, goToSetup,
+    decks, players, activePlayerId, board, pawns, dice, tiles,
+    drawCard, playCard, endTurn, rollDice, rollDie, addTile, goToSetup,
   } = useGameStore();
+
+  const hasDeck = decks.length > 0;
+  const activePlayer = players.find(p => p.id === activePlayerId);
+  const handY = h - CARD_H - 40;
+
+  const [stageView, setStageView] = useState({ x: 0, y: 0, scale: 1 });
+  const touchRef = useRef<{ dist: number; center: { x: number; y: number } } | null>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -63,13 +70,6 @@ export default function GameTable() {
     document.addEventListener('mousedown', onOutside);
     return () => document.removeEventListener('mousedown', onOutside);
   }, [menuOpen, closeMenu]);
-
-  const activePlayer = players.find(p => p.id === activePlayerId);
-
-  const handY = h - CARD_H - 40;
-
-  const [stageView, setStageView] = useState({ x: 0, y: 0, scale: 1 });
-  const touchRef = useRef<{ dist: number; center: { x: number; y: number } } | null>(null);
 
   function onStageTouchStart(e: KonvaEventObject<TouchEvent>) {
     const t = e.evt.touches;
@@ -89,8 +89,6 @@ export default function GameTable() {
     const newDist = Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
     const newCenter = { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
 
-    // Capture stable locals before mutating the ref — the setStageView updater
-    // runs asynchronously, so reading touchRef.current inside it would race.
     const oldDist = touchRef.current.dist;
     const oldCenterX = touchRef.current.center.x;
     const oldCenterY = touchRef.current.center.y;
@@ -99,10 +97,6 @@ export default function GameTable() {
     setStageView(prev => {
       const sf = newDist / oldDist;
       const newScale = Math.max(0.3, Math.min(3, prev.scale * sf));
-      // The canvas point under oldCenter must appear at newCenter after the gesture.
-      // screen = canvas * scale + stageOffset  →  stageOffset = screen - canvas * scale
-      // canvas = (oldCenter - prev.offset) / prev.scale
-      // newOffset = newCenter - canvas * newScale = newCenter - (oldCenter - prev.offset) * sf
       const newX = newCenter.x - (oldCenterX - prev.x) * sf;
       const newY = newCenter.y - (oldCenterY - prev.y) * sf;
       return { x: newX, y: newY, scale: newScale };
@@ -132,39 +126,52 @@ export default function GameTable() {
           onTouchEnd={onStageTouchEnd}
         >
         <Layer>
-          {/* Board — rendered first so it stays below everything else */}
+          {/* Board */}
           {board && <BoardComponent board={board} />}
 
-          {/* Tiles — above board, below cards and pawns */}
+          {/* Tiles */}
           {tiles.map(tile => (
             <TileComponent key={tile.id} tile={tile} />
           ))}
 
-          {/* Hand and shared zone backgrounds — only when a deck was configured */}
+          {/* Hand zone — only when decks are configured */}
           {hasDeck && activePlayer && (
             <Hand playerName={activePlayer.name} tableWidth={w} cardHeight={CARD_H} zoneY={handY} />
           )}
-          {hasDeck && <SharedZone centerX={w / 2} y={70} cardHeight={CARD_H} />}
 
-          {/* Deck (top-left area) — only when a deck was configured */}
-          {hasDeck && (
+          {/* Deck zones — one per configured deck */}
+          {decks.map((dk, i) => (
             <DeckZone
-              x={30}
+              key={dk.id}
+              x={DECK_START_X + i * DECK_ZONE_WIDTH}
               y={60}
-              cardCount={deck.length}
+              label={dk.label}
+              cardCount={dk.cards.length}
+              discardCount={dk.discard.length}
               cardWidth={CARD_W}
               cardHeight={CARD_H}
-              onDraw={drawCard}
+              onDraw={() => drawCard(dk.id)}
             />
-          )}
-          {dice.map(die => (
-            <DieComponent key={die.id} x={die.x} y={die.y} faces={die.faces} result={die.lastResult} />
           ))}
 
-          {/* Cards — shared zone then hand (hand on top) */}
-          {discard.map(card => (
+          {/* Dice */}
+          {dice.map(die => (
+            <DieComponent
+              key={die.id}
+              x={die.x}
+              y={die.y}
+              faces={die.faces}
+              result={die.lastResult}
+              onRoll={() => rollDie(die.id)}
+            />
+          ))}
+
+          {/* Discarded cards (all decks) */}
+          {decks.flatMap(dk => dk.discard).map(card => (
             <CardComponent key={card.id} card={card} />
           ))}
+
+          {/* Hand cards */}
           {activePlayer?.hand.map(card => (
             <CardComponent
               key={card.id}
@@ -173,14 +180,14 @@ export default function GameTable() {
             />
           ))}
 
-          {/* Pawns — topmost layer */}
+          {/* Pawns */}
           {pawns.map(pawn => (
             <PawnComponent key={pawn.id} pawn={pawn} />
           ))}
         </Layer>
       </Stage>
 
-      {/* Tile palette — left-side overlay */}
+      {/* Tile palette */}
       <TilePalette
         onAdd={model => {
           const { x, y } = viewportCenter();
@@ -200,7 +207,6 @@ export default function GameTable() {
           gap: 10,
         }}
       >
-        {/* Turn indicator */}
         <div
           style={{
             color: 'white',
@@ -230,7 +236,7 @@ export default function GameTable() {
           onMouseOver={hover}
           onMouseOut={unhover}
         >
-          Lancer le dé / Roll die
+          Lancer les dés / Roll all
         </button>
 
         {/* Menu button */}
@@ -268,6 +274,7 @@ export default function GameTable() {
               }}>
                 Clic/Tap : retourner / Flip<br />
                 Dbl-clic/Tap : jouer / Play<br />
+                Tap dé : rouler ce dé / Roll die<br />
                 Glisser : déplacer / Drag<br />
                 2 doigts : zoom + pan
               </div>

@@ -6,15 +6,28 @@ import { PAWN_COLORS, SERIES_COLORS } from '../data/configDefaults';
 // ── Local form state ──────────────────────────────────────────────────────────
 
 type BoardKind = 'none' | 'grid' | 'path' | 'freeTiles';
-type DeckKind = 'none' | 'standard52' | 'numbered' | 'coloredSeries';
+type DeckKind = 'standard52' | 'numbered' | 'coloredSeries';
 
 const DIE_FACES: DieSides[] = [4, 6, 8, 10, 12, 20];
 
-// Dropdown option lists (replace free-text number inputs for mobile reliability)
 const GRID_SIZE_OPTS  = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20];
 const PATH_LEN_OPTS   = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
 const NUM_COUNT_OPTS  = [5, 10, 15, 20, 26, 30, 40, 52, 75, 100];
 const PER_COLOR_OPTS  = [1, 2, 3, 4, 5, 6, 8, 10, 13];
+
+interface DeckEntry {
+  kind: DeckKind;
+  numberedCount: number;
+  seriesColors: string[];
+  seriesPerColor: number;
+}
+
+const DEFAULT_DECK_ENTRY: DeckEntry = {
+  kind: 'standard52',
+  numberedCount: 20,
+  seriesColors: ['#e74c3c', '#3498db', '#27ae60', '#f39c12'],
+  seriesPerColor: 5,
+};
 
 interface LocalConfig {
   dieCounts: Partial<Record<DieSides, number>>;
@@ -22,10 +35,7 @@ interface LocalConfig {
   gridCols: number;
   gridRows: number;
   pathLength: number;
-  deckKind: DeckKind;
-  numberedCount: number;
-  seriesColors: string[];
-  seriesPerColor: number;
+  deckEntries: DeckEntry[];
   pawnCounts: Partial<Record<string, number>>;
 }
 
@@ -35,12 +45,21 @@ const DEFAULT_LOCAL: LocalConfig = {
   gridCols: 8,
   gridRows: 8,
   pathLength: 20,
-  deckKind: 'standard52',
-  numberedCount: 20,
-  seriesColors: ['#e74c3c', '#3498db', '#27ae60', '#f39c12'],
-  seriesPerColor: 5,
+  deckEntries: [{ ...DEFAULT_DECK_ENTRY }],
   pawnCounts: { '#e74c3c': 1, '#3498db': 1 },
 };
+
+function entryToSpec(e: DeckEntry): DeckSpec {
+  if (e.kind === 'standard52') return { kind: 'standard52' };
+  if (e.kind === 'numbered')   return { kind: 'numbered', count: e.numberedCount };
+  return { kind: 'coloredSeries', colors: e.seriesColors, perColor: e.seriesPerColor };
+}
+
+function entryCardCount(e: DeckEntry): number {
+  if (e.kind === 'standard52') return 52;
+  if (e.kind === 'numbered') return e.numberedCount;
+  return e.seriesColors.length * e.seriesPerColor;
+}
 
 function toTableConfig(lc: LocalConfig): TableConfig {
   const dice = DIE_FACES
@@ -53,31 +72,20 @@ function toTableConfig(lc: LocalConfig): TableConfig {
     lc.boardKind === 'freeTiles' ? { kind: 'freeTiles' } :
     { kind: 'none' };
 
-  const deck: DeckSpec | null =
-    lc.deckKind === 'standard52'    ? { kind: 'standard52' } :
-    lc.deckKind === 'numbered'      ? { kind: 'numbered', count: lc.numberedCount } :
-    lc.deckKind === 'coloredSeries' ? { kind: 'coloredSeries', colors: lc.seriesColors, perColor: lc.seriesPerColor } :
-    null;
+  const decks: DeckSpec[] = lc.deckEntries.map(entryToSpec);
 
   const pawns = PAWN_COLORS
     .filter(c => (lc.pawnCounts[c] ?? 0) > 0)
     .map(c => ({ color: c, count: lc.pawnCounts[c]! }));
 
-  return { dice, board, deck, pawns, players: 2 };
-}
-
-function deckCardCount(lc: LocalConfig): number {
-  if (lc.deckKind === 'standard52') return 52;
-  if (lc.deckKind === 'numbered') return lc.numberedCount;
-  if (lc.deckKind === 'coloredSeries') return lc.seriesColors.length * lc.seriesPerColor;
-  return 0;
+  return { dice, board, decks, pawns, players: 2 };
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const WRAP: CSSProperties = {
   height: '100vh',
-  overflowY: 'auto',               // this div scrolls; body stays overflow:hidden
+  overflowY: 'auto',
   background: '#1e4d18',
   display: 'flex',
   alignItems: 'flex-start',
@@ -184,6 +192,26 @@ const START_BTN: CSSProperties = {
   boxShadow: '0 3px 10px rgba(0,0,0,0.4)',
 };
 
+const ADD_DECK_BTN: CSSProperties = {
+  width: '100%',
+  padding: '10px',
+  background: 'rgba(255,255,255,0.1)',
+  border: '1px dashed rgba(255,255,255,0.35)',
+  borderRadius: 8,
+  color: 'rgba(255,255,255,0.75)',
+  fontSize: 14,
+  cursor: 'pointer',
+  marginTop: 8,
+};
+
+const DECK_ENTRY_BOX: CSSProperties = {
+  background: 'rgba(255,255,255,0.07)',
+  border: '1px solid rgba(255,255,255,0.15)',
+  borderRadius: 8,
+  padding: '12px',
+  marginBottom: 10,
+};
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function Counter({ value, onChange, min = 0, max = 9 }: {
@@ -207,13 +235,88 @@ function NumSelect({ value, opts, onChange }: {
   onChange: (n: number) => void;
 }) {
   return (
-    <select
-      value={value}
-      onChange={e => onChange(Number(e.target.value))}
-      style={SELECT_STYLE}
-    >
+    <select value={value} onChange={e => onChange(Number(e.target.value))} style={SELECT_STYLE}>
       {opts.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
+  );
+}
+
+function DeckEntryEditor({ index, entry, onChange, onRemove }: {
+  index: number;
+  entry: DeckEntry;
+  onChange: (e: DeckEntry) => void;
+  onRemove: () => void;
+}) {
+  function patch(partial: Partial<DeckEntry>) {
+    onChange({ ...entry, ...partial });
+  }
+  function toggleColor(c: string) {
+    const next = entry.seriesColors.includes(c)
+      ? entry.seriesColors.filter(x => x !== c)
+      : [...entry.seriesColors, c];
+    patch({ seriesColors: next });
+  }
+
+  return (
+    <div style={DECK_ENTRY_BOX}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 'bold', color: '#f0e68c' }}>
+          Paquet {index + 1} / Deck {index + 1}
+        </span>
+        <button
+          onClick={onRemove}
+          style={{ background: 'none', border: 'none', color: 'rgba(255,80,80,0.8)', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}
+        >
+          ✕
+        </button>
+      </div>
+
+      <div style={RADIO_GROUP}>
+        {(['standard52', 'numbered', 'coloredSeries'] as DeckKind[]).map(kind => (
+          <label key={kind} style={RADIO_ROW}>
+            <input type="radio" name={`deck-${index}`} checked={entry.kind === kind} onChange={() => patch({ kind })} />
+            {kind === 'standard52'    ? 'Standard (52)' :
+             kind === 'numbered'      ? 'Numéroté / Numbered' :
+                                        'Séries colorées / Colored series'}
+          </label>
+        ))}
+      </div>
+
+      {entry.kind === 'numbered' && (
+        <div style={{ marginTop: 10 }}>
+          <div style={ROW}>
+            <span style={LABEL}>Quantité / Count</span>
+            <NumSelect value={entry.numberedCount} opts={NUM_COUNT_OPTS} onChange={n => patch({ numberedCount: n })} />
+          </div>
+        </div>
+      )}
+
+      {entry.kind === 'coloredSeries' && (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={ROW}>
+            <span style={LABEL}>Cartes/couleur / per color</span>
+            <NumSelect value={entry.seriesPerColor} opts={PER_COLOR_OPTS} onChange={n => patch({ seriesPerColor: n })} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {SERIES_COLORS.map(c => (
+              <button
+                key={c}
+                onClick={() => toggleColor(c)}
+                style={{
+                  width: 34, height: 34, borderRadius: 4, background: c,
+                  border: entry.seriesColors.includes(c) ? '3px solid white' : '3px solid transparent',
+                  cursor: 'pointer',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p style={HINT}>
+        {entryCardCount(entry)} carte{entryCardCount(entry) !== 1 ? 's' : ''} / card{entryCardCount(entry) !== 1 ? 's' : ''}
+      </p>
+    </div>
   );
 }
 
@@ -235,14 +338,21 @@ export default function SetupScreen() {
     patch({ pawnCounts: { ...lc.pawnCounts, [color]: n } });
   }
 
-  function toggleSeriesColor(color: string) {
-    const next = lc.seriesColors.includes(color)
-      ? lc.seriesColors.filter(c => c !== color)
-      : [...lc.seriesColors, color];
-    patch({ seriesColors: next });
+  function addDeck() {
+    if (lc.deckEntries.length >= 4) return;
+    patch({ deckEntries: [...lc.deckEntries, { ...DEFAULT_DECK_ENTRY }] });
   }
 
-  const totalCards = deckCardCount(lc);
+  function removeDeck(i: number) {
+    patch({ deckEntries: lc.deckEntries.filter((_, idx) => idx !== i) });
+  }
+
+  function updateDeck(i: number, entry: DeckEntry) {
+    const next = [...lc.deckEntries];
+    next[i] = entry;
+    patch({ deckEntries: next });
+  }
+
   const totalDice  = DIE_FACES.reduce((s, f) => s + (lc.dieCounts[f] ?? 0), 0);
   const totalPawns = PAWN_COLORS.reduce((s, c) => s + (lc.pawnCounts[c] ?? 0), 0);
 
@@ -309,57 +419,28 @@ export default function SetupScreen() {
           )}
         </div>
 
-        {/* ── Paquet / Deck ── */}
+        {/* ── Paquets / Decks ── */}
         <div style={SECTION}>
-          <div style={SECTION_TITLE}>Paquet / Deck</div>
-          <div style={RADIO_GROUP}>
-            {(['none', 'standard52', 'numbered', 'coloredSeries'] as DeckKind[]).map(kind => (
-              <label key={kind} style={RADIO_ROW}>
-                <input type="radio" name="deck" checked={lc.deckKind === kind} onChange={() => patch({ deckKind: kind })} />
-                {kind === 'none'          ? 'Aucun / None' :
-                 kind === 'standard52'    ? 'Standard (52)' :
-                 kind === 'numbered'      ? 'Numéroté / Numbered' :
-                                            'Séries colorées / Colored series'}
-              </label>
-            ))}
-          </div>
+          <div style={SECTION_TITLE}>Paquets / Decks</div>
 
-          {lc.deckKind === 'numbered' && (
-            <div style={{ marginTop: 12 }}>
-              <div style={ROW}>
-                <span style={LABEL}>Quantité / Count</span>
-                <NumSelect value={lc.numberedCount} opts={NUM_COUNT_OPTS} onChange={n => patch({ numberedCount: n })} />
-              </div>
-            </div>
+          {lc.deckEntries.map((entry, i) => (
+            <DeckEntryEditor
+              key={i}
+              index={i}
+              entry={entry}
+              onChange={e => updateDeck(i, e)}
+              onRemove={() => removeDeck(i)}
+            />
+          ))}
+
+          {lc.deckEntries.length === 0 && (
+            <p style={HINT}>Aucun paquet / No decks</p>
           )}
 
-          {lc.deckKind === 'coloredSeries' && (
-            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={ROW}>
-                <span style={LABEL}>Cartes/couleur / per color</span>
-                <NumSelect value={lc.seriesPerColor} opts={PER_COLOR_OPTS} onChange={n => patch({ seriesPerColor: n })} />
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {SERIES_COLORS.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => toggleSeriesColor(c)}
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 4,
-                      background: c,
-                      border: lc.seriesColors.includes(c) ? '3px solid white' : '3px solid transparent',
-                      cursor: 'pointer',
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {lc.deckKind !== 'none' && (
-            <p style={HINT}>{totalCards} carte{totalCards !== 1 ? 's' : ''} / card{totalCards !== 1 ? 's' : ''}</p>
+          {lc.deckEntries.length < 4 && (
+            <button style={ADD_DECK_BTN} onClick={addDeck}>
+              + Ajouter un paquet / Add deck
+            </button>
           )}
         </div>
 

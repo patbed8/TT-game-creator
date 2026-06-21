@@ -5,13 +5,14 @@ interface DieProps {
   y: number;
   faces: number;
   result: number | null;
+  onRoll?: () => void;
 }
 
 const SIZE = 52;
 
-export default function DieComponent({ x, y, faces, result }: DieProps) {
+export default function DieComponent({ x, y, faces, result, onRoll }: DieProps) {
   return (
-    <Group x={x} y={y}>
+    <Group x={x} y={y} onClick={onRoll} onTap={onRoll}>
       <Text
         y={-18}
         text="Dé / Die"
@@ -23,7 +24,7 @@ export default function DieComponent({ x, y, faces, result }: DieProps) {
         height={SIZE}
         fill="white"
         cornerRadius={8}
-        stroke="#bbb"
+        stroke="#4a9eff"
         strokeWidth={1.5}
         shadowColor="black"
         shadowBlur={5}
