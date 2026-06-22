@@ -1,6 +1,6 @@
 # Checkpoint — TT Game Creator
 
-**Date :** 2026-06-22  
+**Date :** 2026-06-21  
 **Phase en cours :** Phase 4 — Écran de configuration (suite) — nommage des dés et des paquets  
 **Statut :** Phase complétée
 
