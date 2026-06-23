@@ -119,6 +119,23 @@ export interface TableConfig {
   players: number;
 }
 
+// ── Phase 5: saved configurations ────────────────────────────────────────────
+
+export interface SavedConfig {
+  id: string;
+  name: string;
+  createdAt: string;   // ISO 8601 — never a Date object (localStorage is text-only)
+  updatedAt: string;   // ISO 8601
+  config: TableConfig;
+}
+
+export interface ConfigExport {
+  app: 'tt-game-creator';
+  schema: 1;
+  exportedAt: string;  // ISO 8601
+  configs: SavedConfig[];
+}
+
 // ── Game state ────────────────────────────────────────────────────────────────
 
 export interface GameState {
