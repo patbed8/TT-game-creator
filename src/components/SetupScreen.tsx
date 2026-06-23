@@ -1,7 +1,11 @@
-import { useState, type CSSProperties } from 'react';
+import { useState, useRef, type CSSProperties } from 'react';
 import { useGameStore } from '../store/gameStore';
-import type { BoardConfig, DeckSpec, DieSides, TableConfig } from '../types';
+import type { BoardConfig, DeckSpec, DieSides, SavedConfig, TableConfig } from '../types';
 import { PAWN_COLORS, SERIES_COLORS } from '../data/configDefaults';
+import {
+  isStorageAvailable, listConfigs, saveConfig, updateConfig,
+  deleteConfig, downloadConfigs, parseImport,
+} from '../engine/configStorage';
 
 // ── Local form state ──────────────────────────────────────────────────────────
 
@@ -87,6 +91,38 @@ function toTableConfig(lc: LocalConfig): TableConfig {
     .map(c => ({ color: c, count: lc.pawnCounts[c]! }));
 
   return { dice, board, decks, pawns, players: 2 };
+}
+
+function configToFormState(config: TableConfig): LocalConfig {
+  let boardKind: BoardKind = 'none';
+  let gridCols = 8, gridRows = 8, pathLength = 20;
+  const bc = config.board;
+  if (bc.kind === 'grid')           { boardKind = 'grid';      gridCols = bc.cols; gridRows = bc.rows; }
+  else if (bc.kind === 'path')      { boardKind = 'path';      pathLength = bc.length; }
+  else if (bc.kind === 'freeTiles') { boardKind = 'freeTiles'; }
+
+  const deckEntries: DeckEntry[] = config.decks.map(spec => {
+    const base: DeckEntry = { ...DEFAULT_DECK_ENTRY, label: spec.label ?? '' };
+    if (spec.kind === 'standard52') return { ...base, kind: 'standard52' };
+    if (spec.kind === 'numbered')   return { ...base, kind: 'numbered', numberedCount: spec.count };
+    return { ...base, kind: 'coloredSeries', seriesColors: spec.colors, seriesPerColor: spec.perColor };
+  });
+
+  const pawnCounts: Partial<Record<string, number>> = {};
+  for (const pc of config.pawns) pawnCounts[pc.color] = pc.count;
+
+  return {
+    dieEntries: config.dice.map(d => ({ faces: d.sides, label: d.label })),
+    boardKind, gridCols, gridRows, pathLength, deckEntries, pawnCounts,
+  };
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch {
+    return iso;
+  }
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -229,6 +265,40 @@ const DECK_ENTRY_BOX: CSSProperties = {
   borderRadius: 8,
   padding: '12px',
   marginBottom: 10,
+};
+
+const SAVE_BTN: CSSProperties = {
+  padding: '8px 14px',
+  background: '#27ae60',
+  border: 'none',
+  borderRadius: 6,
+  color: 'white',
+  fontSize: 13,
+  fontWeight: 'bold',
+  cursor: 'pointer',
+  flexShrink: 0,
+};
+
+const ACTION_BTN: CSSProperties = {
+  padding: '5px 10px',
+  background: 'rgba(255,255,255,0.1)',
+  border: '1px solid rgba(255,255,255,0.25)',
+  borderRadius: 6,
+  color: 'rgba(255,255,255,0.85)',
+  fontSize: 12,
+  cursor: 'pointer',
+};
+
+const CONFIG_ITEM: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '10px 12px',
+  background: 'rgba(255,255,255,0.07)',
+  border: '1px solid rgba(255,255,255,0.12)',
+  borderRadius: 8,
+  marginBottom: 8,
+  flexWrap: 'wrap',
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -432,6 +502,60 @@ export default function SetupScreen() {
     patch({ deckEntries: next });
   }
 
+  // ── Saved configurations ──────────────────────────────────────────────────
+
+  const [storageAvailable] = useState(() => isStorageAvailable());
+  const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>(() => listConfigs());
+  const [saveName, setSaveName] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  function refreshConfigs() { setSavedConfigs(listConfigs()); }
+
+  function handleSave() {
+    const trimmed = saveName.trim();
+    if (!trimmed) return;
+    const existing = savedConfigs.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      if (!window.confirm(`Remplacer « ${existing.name} » ? / Replace "${existing.name}"?`)) return;
+      updateConfig(existing.id, { config: toTableConfig(lc) });
+    } else {
+      saveConfig(trimmed, toTableConfig(lc));
+    }
+    setSaveName('');
+    refreshConfigs();
+  }
+
+  function handleLoad(sc: SavedConfig) { setLc(configToFormState(sc.config)); }
+
+  function handleDelete(id: string) {
+    if (!window.confirm('Supprimer cette configuration ? / Delete this setup?')) return;
+    deleteConfig(id);
+    refreshConfigs();
+  }
+
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const imported = parseImport(ev.target?.result as string);
+        if (storageAvailable) {
+          imported.forEach(c => saveConfig(c.name, c.config));
+          refreshConfigs();
+        } else if (imported.length > 0) {
+          setLc(configToFormState(imported[0].config));
+        }
+        setImportError(null);
+      } catch (err) {
+        setImportError((err as Error).message);
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  }
+
   const totalPawns = PAWN_COLORS.reduce((s, c) => s + (lc.pawnCounts[c] ?? 0), 0);
 
   return (
@@ -529,6 +653,79 @@ export default function SetupScreen() {
             ))}
           </div>
           {totalPawns === 0 && <p style={HINT}>Aucun pion / No pawns</p>}
+        </div>
+
+        {/* ── Mes configurations / My setups ── */}
+        <div style={SECTION}>
+          <div style={SECTION_TITLE}>Mes configurations / My setups</div>
+
+          {!storageAvailable && (
+            <p style={{ ...HINT, color: 'rgba(255,200,100,0.85)', fontSize: 12, marginBottom: 8 }}>
+              Sauvegarde locale indisponible (mode privé ?) / Local saving unavailable (private mode?)
+            </p>
+          )}
+
+          {storageAvailable && (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={e => setSaveName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSave()}
+                  placeholder="Nom de la configuration / Setup name"
+                  style={{ ...INPUT_STYLE, flex: 1 }}
+                />
+                <button
+                  style={{ ...SAVE_BTN, opacity: saveName.trim() ? 1 : 0.5 }}
+                  onClick={handleSave}
+                  disabled={!saveName.trim()}
+                >
+                  Enregistrer / Save
+                </button>
+              </div>
+
+              {savedConfigs.length === 0 ? (
+                <p style={HINT}>Aucune configuration enregistrée / No saved setups</p>
+              ) : (
+                <div>
+                  {savedConfigs.map(sc => (
+                    <div key={sc.id} style={CONFIG_ITEM}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 'bold', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.name}</div>
+                        <div style={HINT}>{formatDate(sc.updatedAt)}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button style={ACTION_BTN} onClick={() => handleLoad(sc)}>Charger / Load</button>
+                        <button style={ACTION_BTN} onClick={() => downloadConfigs([sc])}>Exporter / Export</button>
+                        <button
+                          style={{ ...ACTION_BTN, color: 'rgba(255,80,80,0.8)', borderColor: 'rgba(255,80,80,0.3)' }}
+                          onClick={() => handleDelete(sc.id)}
+                        >✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  <button style={{ ...ADD_DECK_BTN, marginTop: 4 }} onClick={() => downloadConfigs(savedConfigs)}>
+                    Tout exporter / Export all
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          <div style={{ marginTop: 8 }}>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={handleImport}
+            />
+            <button style={ADD_DECK_BTN} onClick={() => importInputRef.current?.click()}>
+              Importer / Import
+            </button>
+            {importError && <p style={{ ...HINT, color: 'rgba(255,100,100,0.9)', marginTop: 4 }}>{importError}</p>}
+          </div>
         </div>
 
         {/* ── Start ── */}
